@@ -1,6 +1,7 @@
-import {AST, Create, Insert_Replace} from "node-sql-parser";
+import {AST, Create, Insert_Replace, Parser} from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
+import { Commit, getLatestCommit } from "./storage/commit";
 
 type TableSpecifier = {
   db: string,
@@ -39,7 +40,32 @@ interface Insert extends Insert_Replace {
   table: TableSpecifier[] // The original type appears to be set to any
 };
 
-export default function execute(ast:AST[], storage:Storage) {
+export default function execute(sql:string, storage?:Storage) {
+  if (typeof storage == "undefined") {
+    storage = new Storage();
+  }
+
+  const parser = new Parser();
+  let ast = parser.astify(sql, {
+    database: "MySQL"
+  }); 
+  if (Array.isArray(ast) == false) {
+    ast = [ast] as Array<AST>;
+  }
+
+  console.log(JSON.stringify(ast, null, 2));
+
+  let commits = executeFromAST(ast as AST[], storage);
+
+  return {
+    commits,
+    storage
+  }
+};
+
+export function executeFromAST(ast:AST[], storage:Storage) {
+  let commits:Array<Commit> = [];
+
   ast.forEach((line) => {
     switch(line.type) {
       case "create": 
@@ -51,8 +77,12 @@ export default function execute(ast:AST[], storage:Storage) {
       default: 
         throw new Error("Statement '"  + line.type.toUpperCase() + "' not yet supported.");
     }
+
+    commits.push(getLatestCommit());
   })
-};
+
+  return commits;
+}
 
 function getDatabase(name:string, storage:Storage) {
   let databaseName = name;
@@ -99,17 +129,20 @@ function insert(ast:Insert, storage:Storage) {
   let table = getTable(ast.table[0], storage);
 
   if (ast.columns == null) {
-    // We can insert via an array without named columns. 
-    let data:Array<CellData> = [];
-
     ast.values.forEach((item) => {
+      // We can insert via an array without named columns. 
+      let data:Array<CellData> = [];
+
       // TODO: This assumes raw data is in the insert values. 
       // TODO: Support expressions. 
-      data.push(item.value[0].value);
+      item.value.forEach((cellData) => {
+        data.push(cellData.value);
+      })
+      
+      table.insert(data);
     });
-
-    table.insert(data);
   } else {
     // TODO: Insert differently. 
+    throw new Error("INSERTing only some columns not implemented yet")
   }
 };
