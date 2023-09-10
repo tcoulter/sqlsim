@@ -1,13 +1,7 @@
 import searchClosest from "../helpers/searchclosest";
+import { Commit, newCommit } from "./commit";
 
 export type CellData = number|String|null;
-export type Commit = number;
-
-let latestCommit = 0;
-function newCommit() {
-  latestCommit = latestCommit += 1;
-  return latestCommit;
-}
 
 export default class Cell {
   data:Record<number, CellData> = {};
