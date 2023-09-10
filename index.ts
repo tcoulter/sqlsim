@@ -10,6 +10,8 @@ CREATE TABLE T (
 );
 
 INSERT INTO T VALUES (20), (21);
+
+SELECT * FROM T;
 `, storage);
 
 console.log(storage.databases['default'].tables['T'].rows[0].cells)

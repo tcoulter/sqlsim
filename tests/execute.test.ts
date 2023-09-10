@@ -32,7 +32,7 @@ describe("execute()", () => {
 
     expect(database.tables['t'].rows.length).toBe(1);
     expect(database.tables['t'].rows[0].cells.length).toBe(1);
-    expect(database.tables['t'].rows[0].cells[0].get()).toBe(20);
+    expect(database.tables['t'].rows[0].cells[0].getData()).toBe(20);
   })
 
   test('INSERT with multiple values', () => {
@@ -45,8 +45,8 @@ describe("execute()", () => {
     // Remember, this tes relys on the ones before it, so if we add 
     // two items, there should be three rows. 
     expect(database.tables['t'].rows.length).toBe(3);
-    expect(database.tables['t'].rows[1].cells[0].get()).toBe(21);
-    expect(database.tables['t'].rows[2].cells[0].get()).toBe(22);
+    expect(database.tables['t'].rows[1].cells[0].getData()).toBe(21);
+    expect(database.tables['t'].rows[2].cells[0].getData()).toBe(22);
   })
 
   test('CREATE and INSERT multiple columns, multiple values', () => {
@@ -69,11 +69,11 @@ describe("execute()", () => {
     expect(database.tables['l'].rows.length).toBe(2);
 
     // First row
-    expect(database.tables['l'].rows[0].cells[0].get()).toBe('Tim');
-    expect(database.tables['l'].rows[0].cells[1].get()).toBe(30);
+    expect(database.tables['l'].rows[0].cells[0].getData()).toBe('Tim');
+    expect(database.tables['l'].rows[0].cells[1].getData()).toBe(30);
 
     // Second row
-    expect(database.tables['l'].rows[1].cells[0].get()).toBe('Liz');
-    expect(database.tables['l'].rows[1].cells[1].get()).toBe(21);
+    expect(database.tables['l'].rows[1].cells[0].getData()).toBe('Liz');
+    expect(database.tables['l'].rows[1].cells[1].getData()).toBe(21);
   })
 })

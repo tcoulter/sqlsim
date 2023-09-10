@@ -7,16 +7,30 @@ class Row {
 
   cells:Array<Cell> = [];
 
-  constructor(data:Array<CellData>) {
-    this.createdAt = newCommit();
+  constructor(data:Array<CellData>, commit?:Commit) {
+    this.createdAt = commit || newCommit();
 
     data.forEach((value) => {
       this.cells.push(new Cell(value, this.createdAt));
     })
   }
 
-  isDeleted() {
-    return this.deletedAt != null;
+  isDeleted(commit?:Commit) {
+    // If it hasn't been deleted at all, always return false. 
+    if (this.deletedAt == null) {
+      return false;
+    }
+
+    // deletedAt must be set. 
+    // If no commit was asked for, then we're looking for the
+    // latest state, which is deleted. 
+    if (typeof commit == "undefined") {
+      return true;
+    }
+
+    // Else we have a commit; only return true if commit is 
+    // greater than the deleted time. 
+    return commit > this.deletedAt;
   }
 
   delete(commit?:Commit) {
@@ -37,6 +51,26 @@ class Row {
     })
 
     return newCells;
+  }
+
+  put(data:Array<CellData>, commit:Commit = newCommit()) {
+    if (data.length != this.cells.length) {
+      throw new Error("Unexpected number of values passed to row's put()");
+    }
+
+    data.forEach((value, index) => {
+      this.cells[index].put(value, commit);
+    });
+  }
+
+  getData(commit?:Commit):Array<CellData> {
+    let result = this.cells.map((cell) => {
+      return cell.getData(commit);
+    })
+
+    console.log("ROW", result);
+
+    return result;
   }
 }
 

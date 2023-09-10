@@ -40,7 +40,7 @@ describe("Cell", () => {
     cell.put(14);
     cell.put(15);
 
-    expect(cell.get()).toBe(15);
+    expect(cell.getData()).toBe(15);
   });
 
   test("searching at a commit that doesn't exist", () => {
@@ -54,6 +54,8 @@ describe("Cell", () => {
     // we expect will be returned. 
     let expectedCommit = cellOne.latestCommit;
 
+    // This creation/commit bumps the commit index, making it so
+    // cell one will never have this commit. 
     let cellTwo = new Cell(20);
 
     // Note that the latest commit on cellTwo is the commit
@@ -69,7 +71,7 @@ describe("Cell", () => {
 
     // Test that getting at the expected commit matches the value,
     // all while searching for a commit that doesn't exist in cellOne's data.
-    expect(cellOne.get(searchCommit)).toBe(cellOne.get(expectedCommit));
-    expect(cellOne.get(searchCommit)).toBe(expectedValue);
+    expect(cellOne.getData(searchCommit)).toBe(cellOne.getData(expectedCommit));
+    expect(cellOne.getData(searchCommit)).toBe(expectedValue);
   });
 })

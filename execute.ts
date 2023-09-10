@@ -1,7 +1,8 @@
-import {AST, Create, Insert_Replace, Parser} from "node-sql-parser";
+import {Parser, AST, Create as ASTCreate, Insert_Replace as ASTInsert, Select as ASTSelect} from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
+import Table, { LockedTable } from "./storage/table";
 
 type TableSpecifier = {
   db: string,
@@ -29,16 +30,21 @@ type CreateDefinition = {
 
 // The following are the top level types used throughout the executor
 
-interface CreateTable extends Create {
+interface CreateTable extends ASTCreate {
   keyword: "table", // Force table keyword
   table: TableSpecifier[], // Make table required - I'm not sure why it's returned as an array,
   create_definitions: CreateDefinition[]
 }
 
-interface Insert extends Insert_Replace {
+interface Insert extends ASTInsert {
   type: "insert",
   table: TableSpecifier[] // The original type appears to be set to any
 };
+
+interface Select extends ASTSelect {
+  type: "select",
+  from: TableSpecifier[] // This will need to change later wrt subqueries
+}
 
 export default function execute(sql:string, storage?:Storage) {
   if (typeof storage == "undefined") {
@@ -53,7 +59,7 @@ export default function execute(sql:string, storage?:Storage) {
     ast = [ast] as Array<AST>;
   }
 
-  console.log(JSON.stringify(ast, null, 2));
+  //console.log(JSON.stringify(ast, null, 2));
 
   let commits = executeFromAST(ast as AST[], storage);
 
@@ -63,35 +69,38 @@ export default function execute(sql:string, storage?:Storage) {
   }
 };
 
-export function executeFromAST(ast:AST[], storage:Storage) {
-  let commits:Array<Commit> = [];
+export function executeFromAST(ast:AST[], storage:Storage):Array<Commit|Table> {
+  let results:Array<Commit|Table> = [];
 
   ast.forEach((line) => {
+    let result:Commit|Table;
+
     switch(line.type) {
       case "create": 
-        create(line, storage);
+        result = create(line, storage);
         break;
       case "insert": 
-        insert(line as Insert, storage);
+        result = insert(line as Insert, storage);
+        break;
+      case "select": 
+        result = select(line as Select, storage);
         break;
       default: 
         throw new Error("Statement '"  + line.type.toUpperCase() + "' not yet supported.");
     }
 
-    commits.push(getLatestCommit());
+    results.push(result);
   })
 
-  return commits;
+  return results;
 }
 
 function getDatabase(name:string, storage:Storage) {
-  let databaseName = name;
-
-  if (databaseName == null) {
-    databaseName = storage.defaultDatabase;
+  if (name == null) {
+    name = storage.defaultDatabase;
   }
 
-  return storage.getDatabase(databaseName);
+  return storage.getDatabase(name);
 }
 
 function getTable(specifier:TableSpecifier, storage:Storage) {
@@ -101,17 +110,17 @@ function getTable(specifier:TableSpecifier, storage:Storage) {
 
 // function getDatabase()
 
-function create(ast:Create, storage:Storage) {
+function create(ast:ASTCreate, storage:Storage):Commit {
   switch(ast.keyword) {
     case "table": 
-      createTable(ast as CreateTable, storage);
+      return createTable(ast as CreateTable, storage);
       break;
     default: 
       throw new Error("CREATE " + ast.keyword.toUpperCase() + " is not yet supported");
   }
 };
 
-function createTable(ast:CreateTable, storage:Storage) {
+function createTable(ast:CreateTable, storage:Storage):Commit {
   // I'm not sure why ast.table is an array, so we'll assume there's only one result for now
   let tableName = ast.table[0].table;
   let database = getDatabase(ast.table[0].db, storage);
@@ -122,10 +131,12 @@ function createTable(ast:CreateTable, storage:Storage) {
     columnNames.push(createDefinition.column.column);
   });
 
-  let table = database.createTable(tableName, columnNames);
+  database.createTable(tableName, columnNames);
+
+  return getLatestCommit();
 };
 
-function insert(ast:Insert, storage:Storage) {
+function insert(ast:Insert, storage:Storage):Commit {
   let table = getTable(ast.table[0], storage);
 
   if (ast.columns == null) {
@@ -145,4 +156,17 @@ function insert(ast:Insert, storage:Storage) {
     // TODO: Insert differently. 
     throw new Error("INSERTing only some columns not implemented yet")
   }
+
+  return getLatestCommit();
 };
+
+function select(ast:Select, storage:Storage):Table {
+  let database = getDatabase(ast.from[0].db, storage);
+  let table = database.getTable(ast.from[0].table);
+
+  // Assume everything is SELECT * for now. 
+  
+  // Return a locked version of the table so this intance will return 
+  // no new data even if cell objects are updated. 
+  return new LockedTable(table);
+}

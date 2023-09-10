@@ -25,7 +25,7 @@ export default class Cell {
     }
   }
 
-  get(commit?:Commit):CellData {
+  getData(commit?:Commit):CellData {
     // If no commit was passed, return the latest.
     if (typeof commit == "undefined") {
       return this.data[this.latestCommit];
