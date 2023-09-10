@@ -4,15 +4,15 @@ import execute from "./execute";
 
 let storage = new Storage();
 
-execute(`
-CREATE TABLE T (
-  age INTEGER
-);
+let results = execute(`
+  CREATE TABLE T (
+    age INTEGER
+  );
 
-INSERT INTO T VALUES (20), (21);
+  INSERT INTO T VALUES (20), (21);
 
-SELECT * FROM T;
+  SELECT * FROM T;
 `, storage);
 
-console.log(storage.databases['default'].tables['T'].rows[0].cells)
+console.log(JSON.stringify(results, null, 2));
 

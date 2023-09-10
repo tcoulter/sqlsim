@@ -61,10 +61,18 @@ export default function execute(sql:string, storage?:Storage) {
 
   //console.log(JSON.stringify(ast, null, 2));
 
-  let commits = executeFromAST(ast as AST[], storage);
+  let results = executeFromAST(ast as AST[], storage);
+
+  let sanitizedResults:Array<Commit|Array<Array<CellData>>> = results.map((result) => {
+    if ((result instanceof Table) == false) {
+      return result as number;
+    }
+
+    return (result as Table).getData();
+  });
 
   return {
-    commits,
+    results: sanitizedResults,
     storage
   }
 };

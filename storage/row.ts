@@ -68,8 +68,6 @@ class Row {
       return cell.getData(commit);
     })
 
-    console.log("ROW", result);
-
     return result;
   }
 }
