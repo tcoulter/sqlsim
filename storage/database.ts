@@ -1,15 +1,18 @@
+import { Commit, Committed, getLatestCommit } from "./commit";
 import Table from "./table";
 
-export default class Database {
+export default class Database extends Committed {
   tables:Record<string, Table> = {};
   name:string;
 
-  constructor(name:string) {
+  constructor(name:string, commit?:Commit) {
+    super("database", commit);
     this.name = name;
   }
 
-  hasTable(tableName:string) {
-    return typeof this.tables[tableName] != "undefined";
+  hasTable(tableName:string, commit:Commit = getLatestCommit()) {
+    return typeof this.tables[tableName] != "undefined" 
+      && this.tables[tableName].createdAt <= commit;
   }
 
   createTable(tableName:string, columnNames:Array<string>) {
@@ -23,8 +26,9 @@ export default class Database {
     return this.tables[tableName];
   }
 
-  getTable(tableName:string) {
-    if (!this.hasTable(tableName)) {
+  // TODO: If a commit is passed, should we return a locked table? 
+  getTable(tableName:string, commit:Commit = getLatestCommit()) {
+    if (!this.hasTable(tableName, commit)) {
       throw new Error("Cannot get table " + tableName + " because it doesn't exist in database!");
     }
 

@@ -1,44 +1,15 @@
 import Cell, { CellData } from "./cell";
-import { Commit, newCommit } from "./commit";
+import { Commit, Committed, newCommit } from "./commit";
 
-class Row {
-  createdAt:Commit;
-  deletedAt:Commit|null = null;
-
+class Row extends Committed {
   cells:Array<Cell> = [];
 
   constructor(data:Array<CellData>, commit?:Commit) {
-    this.createdAt = commit || newCommit();
+    super("row", commit);
 
     data.forEach((value) => {
       this.cells.push(new Cell(value, this.createdAt));
     })
-  }
-
-  isDeleted(commit?:Commit) {
-    // If it hasn't been deleted at all, always return false. 
-    if (this.deletedAt == null) {
-      return false;
-    }
-
-    // deletedAt must be set. 
-    // If no commit was asked for, then we're looking for the
-    // latest state, which is deleted. 
-    if (typeof commit == "undefined") {
-      return true;
-    }
-
-    // Else we have a commit; only return true if commit is 
-    // greater than the deleted time. 
-    return commit > this.deletedAt;
-  }
-
-  delete(commit?:Commit) {
-    if (this.isDeleted()) {
-      throw new Error("Cannot delete row. It's already deleted!");
-    }
-
-    this.deletedAt = typeof commit != "undefined" ? commit : newCommit();
   }
 
   // TODO: Expand this to do actual projection rather than

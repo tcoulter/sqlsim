@@ -1,13 +1,15 @@
 import { CellData } from "./cell";
-import { Commit, getLatestCommit } from "./commit";
+import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row from "./row";
 
-class Table {
+class Table extends Committed {
   name:string;
   columns:Array<String> = [];
   rows:Array<Row> = [];
   
-  constructor(name:string, columns:Array<String>) {
+  constructor(name:string, columns:Array<String>, commit?:Commit) {
+    super("table", commit);
+
     this.name = name;
     this.columns = columns
   }
