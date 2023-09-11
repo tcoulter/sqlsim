@@ -1,3 +1,4 @@
+import { ComputationResult } from "../compute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row from "./row";
@@ -40,7 +41,10 @@ export default class Table extends Committed {
 
   project(columns:Array<string>) {
     // Lock it like it's hot
-    return new ComputedTable(this, columns);
+    return new ComputedTable({
+      table: this, 
+      projectedColumns: columns
+    });
   }
 
   hasColumn(columnName:string) {
@@ -68,19 +72,20 @@ export default class Table extends Committed {
   } 
 }
 
-export type RowFilter = Function;
+export type RowFilter = (table:ComputedTable, row:Row) => boolean;
 
 export type ComputedTableOptions = {
   table: Table, 
   projectedColumns?:Array<string>,
-  rowFilters: Array<RowFilter>,
+  rowFilters?: Array<RowFilter>,
   commit?:Commit
 };
 
 export class ComputedTable extends Table {
   lockedAt:Commit; 
+  rowFilters:Array<RowFilter>;
 
-  constructor(table:Table, projectedColumns?:Array<string>, commit?:Commit) {
+  constructor({table, projectedColumns, rowFilters = [], commit}:ComputedTableOptions) {
     let columns = projectedColumns || table.columns;
     super(table.name, columns, table.createdAt);
 
@@ -99,6 +104,7 @@ export class ComputedTable extends Table {
       this.columnIndexMap[columnName] = sourceColumnIndex;
     })
 
+    this.rowFilters = rowFilters;
     this.lockedAt = commit || getLatestCommit();
   }
 
@@ -115,7 +121,18 @@ export class ComputedTable extends Table {
       commit = this.lockedAt
     }
 
-    return this.getRows(commit).map((row) => {
+    let rows = this.getRows(commit);
+
+    // Perform row filters. This is where WHERE clause processing happens. 
+    if (this.rowFilters.length > 0) {
+      this.rowFilters.forEach((rowFilter) => {
+        rows = rows.filter((row) => {
+          return rowFilter(this, row);
+        })
+      });
+    }
+
+    return rows.map((row) => {
       return this.columns.map((columnName) => {
         return row.cells[this.columnIndexMap[columnName]].getData(commit);
       });

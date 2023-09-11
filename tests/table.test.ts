@@ -15,7 +15,7 @@ describe("ComputedTable", () => {
     // We're going to do direct updates to the row rather than 
     // through any update mechanism (doesn't exist yet as of this writing).
 
-    let lockedTable = new ComputedTable(table);
+    let lockedTable = new ComputedTable({table});
 
     row.put(newData);
 
@@ -30,7 +30,7 @@ describe("ComputedTable", () => {
     let table = new Table("People", ["name", "age"]);
     table.insert(firstRow);
 
-    let lockedTable = new ComputedTable(table);
+    let lockedTable = new ComputedTable({table});
 
     table.insert(secondRow);
 
@@ -51,7 +51,7 @@ describe("ComputedTable", () => {
     table.insert(firstRow);
     table.insert(secondRow);
 
-    let lockedTable = new ComputedTable(table);
+    let lockedTable = new ComputedTable({table});
 
     table.rows[1].delete();
 

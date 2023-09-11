@@ -169,4 +169,53 @@ describe("execute()", () => {
       [21, 21, 21]
     ])
   })
+
+  test('SELECT with simple WHERE clause', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE l (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT * FROM l WHERE age > 25;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ["Tim", 30]
+    ])
+  });
+
+  test('SELECT with more advanced WHERE clause', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT,
+        dept VARCHAR(20)
+      );
+
+      INSERT INTO People VALUES 
+        ('Tim', 30, 'Sales'), 
+        ('Liz', 21, 'Sales'),
+        ('Preeti', 27, 'Accounting'),
+        ('Gary', 18, 'Accounting');
+
+      SELECT * FROM People WHERE dept = 'Accounting' AND age > 25;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ["Preeti", 27, "Accounting"]
+    ])
+  });
 })

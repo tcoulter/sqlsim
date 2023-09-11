@@ -9,7 +9,8 @@ import {
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { ComputedTable } from "./storage/table";
+import Table, { ComputedTable, RowFilter } from "./storage/table";
+import compute, { BinaryExpression } from "./compute";
 
 type TableSpecifier = {
   db: string,
@@ -53,6 +54,7 @@ interface Select extends ASTSelect {
   type: "select",
   from: TableSpecifier[], // This will need to change later wrt subqueries
   columns: ASTColumn[] | "*" // Remove the any[]
+  where: BinaryExpression | null
 }
 
 export default function execute(sql:string, storage?:Storage) {
@@ -125,8 +127,6 @@ function getTable(specifier:TableSpecifier, storage:Storage) {
   return database.getTable(specifier.table);
 }
 
-// function getDatabase()
-
 function create(ast:ASTCreate, storage:Storage):Commit {
   switch(ast.keyword) {
     case "table": 
@@ -182,6 +182,7 @@ function select(ast:Select, storage:Storage):Table {
   let table = database.getTable(ast.from[0].table);
 
   let projectedColumns:Array<string>|undefined = undefined;
+  let rowFilters:Array<RowFilter> = [];
   
   // TODO: We're just gonna project all the columns whenever we find
   // a star (*). Makes coding easier but likely will incur a performance hit. 
@@ -208,7 +209,20 @@ function select(ast:Select, storage:Storage):Table {
     });
   }
 
+  if (ast.where != null) {
+    rowFilters.push((filtredTable, filteredRow) => {
+      // TODO(?): Notice the !!. For now, lets not worry about a computation result
+      // in the WHERE clause returning something other than a boolean. 
+      // Let's assume that the parser takes care of that for us. 
+      return !!compute(ast.where as BinaryExpression, filteredRow, filtredTable.columnIndexMap, filtredTable.lockedAt);
+    })
+  }
+
   // Return a locked version of the table so this intsance will return 
   // no new data even if cell objects are updated. 
-  return new ComputedTable(table, projectedColumns);
+  return new ComputedTable({
+    table, 
+    projectedColumns,
+    rowFilters
+  });
 }
