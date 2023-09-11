@@ -1,7 +1,7 @@
-import { ComputationResult } from "../compute";
+import compute, { BinaryExpression, ComputationResult } from "../compute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
-import Row from "./row";
+import Row, { JoinedRow } from "./row";
 
 export type ColumnIndexMap = Record<string, number>;
 
@@ -10,12 +10,14 @@ export default class Table extends Committed {
   columns:Array<string> = [];
   rows:Array<Row> = [];
   columnIndexMap:ColumnIndexMap = {};
+  sourceDataCellCount:number;
   
   constructor(name:string, columns:Array<string>, commit?:Commit) {
     super("table", commit);
 
     this.name = name;
     this.columns = columns;
+    this.sourceDataCellCount = columns.length;
 
     this.columns.forEach((columnName, index) => {
       this.columnIndexMap[columnName] = index;
@@ -112,6 +114,18 @@ export class ComputedTable extends Table {
     throw new Error("Locked tables are immutable"); 
   }
 
+  getRows(commit?:Commit):Array<Row> {
+    if (typeof commit == "undefined") {
+      commit = this.lockedAt;
+    }
+
+    if (commit > this.lockedAt) {
+      commit = this.lockedAt
+    }
+
+    return super.getRows(commit);
+  }
+
   getData(commit?:Commit):Array<Array<CellData>> {
     if (typeof commit == "undefined") {
       commit = this.lockedAt;
@@ -134,8 +148,127 @@ export class ComputedTable extends Table {
 
     return rows.map((row) => {
       return this.columns.map((columnName) => {
-        return row.cells[this.columnIndexMap[columnName]].getData(commit);
+        return row.cell(this.columnIndexMap[columnName]).getData(commit);
       });
     });
+  }
+}
+
+export type JoinType = "left" | "right" | "inner" | "full";
+
+// For a JoinedTable, we extend a ComputedTable which 
+// acts as the left part of the join. 
+
+export type JoinedTableOptions = {
+  type: JoinType,
+  left: Table,
+  right: Table,
+  on: BinaryExpression,
+  commit?: Commit
+}
+
+export class JoinedTable extends Table {
+  lockedAt:Commit; 
+
+  type:JoinType;
+  right:Table;
+  on:BinaryExpression;
+
+  constructor({type, left, right, on, commit}:JoinedTableOptions) {
+    let columns = left.columns.concat(right.columns);
+    super("Joined Table", columns, left.createdAt);
+    this.rows = left.rows;
+    this.type = type;
+
+    this.right = new ComputedTable({
+      table: right
+    });
+
+    this.on = on;
+
+    this.lockedAt = commit || getLatestCommit();
+
+    this.sourceDataCellCount = left.sourceDataCellCount + right.sourceDataCellCount;
+
+    // Write a columnIndexMap that accounts for both rows
+    // Note that the indexes refer to the index value as if
+    // the cell data were one big array. 
+    let newColumnIndexMap:ColumnIndexMap = {};
+
+    // Keep the left columns
+    Object.keys(left.columnIndexMap).forEach((leftColumnName) => {
+      newColumnIndexMap[leftColumnName] = left.columnIndexMap[leftColumnName];
+    })
+
+    // Now add in the right columns, adjusting index to account for left values
+    Object.entries(right.columnIndexMap).forEach(([rightColumn, rightColumnIndex]) => {
+      newColumnIndexMap[rightColumn] = left.sourceDataCellCount + rightColumnIndex;
+    })
+      
+    this.columnIndexMap = newColumnIndexMap;
+  }
+
+  getRows(commit?:Commit):Array<Row> {
+    if (typeof commit == "undefined") {
+      commit = this.lockedAt;
+    }
+
+    if (commit > this.lockedAt) {
+      commit = this.lockedAt
+    }
+
+    let leftRows = super.getRows(commit); 
+    let rightRows = this.right.getRows(commit);
+
+    let newRows:Array<Row> = [];
+    let rightMatches:Map<Row, boolean> = new Map();
+
+    leftRows.forEach((leftRow) => {
+      let foundMatchinRightRow = false;
+
+      rightRows.forEach((rightRow) => {
+        let joinedRow = new JoinedRow(leftRow, rightRow);
+        let rowMatches = !!compute(this.on, joinedRow, this.columnIndexMap, commit);
+
+        if (rowMatches == true) {
+          foundMatchinRightRow = true;
+          newRows.push(joinedRow);
+        } 
+
+        // If we don't yet have a record for the current right row
+        // OR, if we do (assumed) AND we haven't found a match yet,
+        // record what we have. 
+        if (!rightMatches.has(rightRow) || rightMatches.get(rightRow) == false) {
+          rightMatches.set(rightRow, rowMatches);
+        }
+      })
+
+      // No right match found? Then fill the right with null on a left join
+      if (foundMatchinRightRow == false && (this.type == "left" || this.type == "full")) {
+        // Join a row with the left 
+        newRows.push(new JoinedRow(
+          leftRow,
+          new Row(new Array(this.right.sourceDataCellCount).fill(null))
+        ));
+      }
+    });
+
+    // Now for ever right row where a match that wasn't found, let's include rows for it
+    // if we have a right or full join. 
+    if (this.type == "right" || this.type == "full") {
+      rightMatches.forEach((wasFound, rightRow) => {
+        if (wasFound == false) {
+          // The left (this table) sourceDataCellCount was updated on intialization
+          // to include counts for the right data (to appear as though it is one big array).
+          // We have to recalculate it by subtracting. (This is smelly, but whatevs).
+          newRows.push(new JoinedRow(
+            new Row(new Array(this.sourceDataCellCount - this.right.sourceDataCellCount).fill(null)),
+            rightRow
+          ))
+        }
+      });
+    }
+
+    return newRows;
   }
 }

@@ -1,63 +1,69 @@
 import Cell, { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
+import { JoinType } from "./table";
 
 export default class Row extends Committed {
-  cells:Array<Cell> = [];
+  #cells:Array<Cell> = [];
 
   constructor(data:Array<CellData>, commit?:Commit) {
     super("row", commit);
 
     data.forEach((value) => {
-      this.cells.push(new Cell(value, this.createdAt));
+      this.#cells.push(new Cell(value, this.createdAt));
     })
   }
 
+  cell(index:number):Cell {
+    return this.#cells[index];
+  }
+
+  numCells():number {
+    return this.#cells.length;
+  }
+
   put(data:Array<CellData>, commit:Commit = newCommit()) {
-    if (data.length != this.cells.length) {
+    if (data.length != this.#cells.length) {
       throw new Error("Unexpected number of values passed to row's put()");
     }
 
     data.forEach((value, index) => {
-      this.cells[index].put(value, commit);
+      this.#cells[index].put(value, commit);
     });
   }
 
   getData(commit?:Commit):Array<CellData> {
-    let result = this.cells.map((cell) => {
-      return cell.getData(commit);
-    })
+    let result:Array<CellData> = [];
+
+    //console.log("numCells", this.numCells());
+
+    for (var index = 0; index < this.numCells(); index++) {
+      //console.log("--index", index, this.cell(index))
+      result.push(this.cell(index).getData(commit));
+    }
 
     return result;
   }
 }
 
-// export class LockedRow extends Row {
-//   lockedAt:Commit;
-//   lockedIndexes:Array<number>;
+export class JoinedRow extends Row {
+  left:Row;
+  right:Row;
 
-//   constructor(row:Row, lockedIndexes:Array<number>, commit?:Commit) {
-//     super([], row.createdAt);
-//     this.cells = row.cells;
+  constructor(left:Row, right:Row) {
+    super([]);
+    this.left = left;
+    this.right = right;
+  }
 
-//     this.lockedAt = commit || getLatestCommit();
-//     this.lockedIndexes = lockedIndexes;
-//   }
+  cell(index:number):Cell {
+    if (index < this.left.numCells()) {
+      return this.left.cell(index);
+    } else {
+      return this.right.cell(index - this.left.numCells())
+    }
+  }
 
-//   put(data:Array<CellData>, commit?:Commit) {
-//     throw new Error("Locked rows are immutable.");
-//   }
-
-//   getData(commit?:Commit):Array<CellData> {
-//     if (typeof commit == "undefined") {
-//       commit = this.lockedAt;
-//     }
-
-//     if (commit > this.lockedAt) {
-//       commit = this.lockedAt
-//     }
-
-//     return this.lockedIndexes.map((index) => {
-//       return this.cells[index].getData(commit);
-//     });
-//   }
-// }
+  numCells():number {
+    return this.left.numCells() + this.right.numCells();
+  }
+}

@@ -1,6 +1,7 @@
 import { CellData } from "../storage/cell";
 import Row from "../storage/row";
-import Table, { ComputedTable } from "../storage/table";
+import Table, { ComputedTable, JoinedTable } from "../storage/table";
+import { columnRef, expression } from "./helpers";
 
 describe("ComputedTable", () => {
   test("cells return data at lock time even after updates", () => {
@@ -112,5 +113,80 @@ describe("Table", () => {
       [ firstRow[0],  firstRow[0],  firstRow[0]  ],
       [ secondRow[0], secondRow[0], secondRow[0] ]
     ]);
+  });
+})
+
+describe("JoinedTable", () => {
+  test("handles simple joins", () => {
+    let people = new Table("People", ["name", "age", "from_id"]);
+    let countries = new Table("Countries", ["country_id", "country_name"]);
+    
+    people.insert([
+      ["Tim", 30, 1],
+      ["Liz", 21, 2],
+      ["Russ", 47, null]  // Note Russ has no from_id
+    ]);
+
+    countries.insert([
+      [1, "USA"],
+      [2, "Canada"],
+      [3, "Mexico"]
+    ]);
+
+    let innerJoin = new JoinedTable({
+      type: "inner",
+      left: people, 
+      right: countries,
+      on: expression(columnRef("from_id"), "=", columnRef("country_id"))
+    });
+
+    expect(innerJoin.columns.length).toBe(5);
+    expect(innerJoin.columns).toEqual(people.columns.concat(countries.columns));
+    expect(innerJoin.getData()).toEqual([
+      ["Tim", 30, 1, 1, "USA"],
+      ["Liz", 21, 2, 2, "Canada"]
+    ])
+
+    let leftJoin = new JoinedTable({
+      type: "left",
+      left: people, 
+      right: countries,
+      on: expression(columnRef("from_id"), "=", columnRef("country_id"))
+    })
+
+    expect(leftJoin.getData()).toEqual([
+      ["Tim", 30, 1, 1, "USA"],
+      ["Liz", 21, 2, 2, "Canada"],
+      ["Russ", 47, null, null, null]
+    ])
+
+    let rightJoin = new JoinedTable({
+      type: "right",
+      left: people, 
+      right: countries,
+      on: expression(columnRef("from_id"), "=", columnRef("country_id"))
+    })
+
+    expect(rightJoin.getData()).toEqual([
+      ["Tim", 30, 1, 1, "USA"],
+      ["Liz", 21, 2, 2, "Canada"],
+      [null, null, null, 3, "Mexico"]
+    ]);
+
+    let fullJoin = new JoinedTable({
+      type: "full",
+      left: people, 
+      right: countries,
+      on: expression(columnRef("from_id"), "=", columnRef("country_id"))
+    })
+
+    expect(fullJoin.getData()).toEqual([
+      ["Tim", 30, 1, 1, "USA"],
+      ["Liz", 21, 2, 2, "Canada"],
+      ["Russ", 47, null, null, null],
+      [null, null, null, 3, "Mexico"]
+    ])
   })
+
+  // TODO: Make sure joined tables respect row commits
 })

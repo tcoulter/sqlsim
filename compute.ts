@@ -1,7 +1,7 @@
 import { ColumnRef } from "./execute";
 import { CellData } from "./storage/cell";
 import { Commit } from "./storage/commit";
-import Row from "./storage/row";
+import Row, { JoinedRow } from "./storage/row";
 import Table, { ColumnIndexMap } from "./storage/table";
 
 // Damn parser doesn't give us an Expression type
@@ -87,7 +87,9 @@ export default function compute(expr:ColumnRef|Literal|BinaryExpression|Expressi
       if (typeof dataIndex == "undefined") {
         throw new Error("Cannot find column " + expr.column);
       }
-      return row.cells[dataIndex].getData(commit);
+      let value = row.cell(dataIndex).getData(commit);
+      // console.log("Resolving column " + expr.column + " (index: " + dataIndex + ") to value:", value);
+      return value;
     default: 
       throw new Error("Expression type " + expr.type + " not yet supported");
   }

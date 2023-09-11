@@ -30,8 +30,8 @@ describe("execute()", () => {
     let database = storage.databases['default'];
 
     expect(database.tables['t'].rows.length).toBe(1);
-    expect(database.tables['t'].rows[0].cells.length).toBe(1);
-    expect(database.tables['t'].rows[0].cells[0].getData()).toBe(20);
+    expect(database.tables['t'].rows[0].numCells()).toBe(1);
+    expect(database.tables['t'].rows[0].cell(0).getData()).toBe(20);
   })
 
   test('INSERT with multiple values', () => {
@@ -46,8 +46,8 @@ describe("execute()", () => {
     let database = storage.databases['default'];
 
     expect(database.tables['t'].rows.length).toBe(2);
-    expect(database.tables['t'].rows[0].cells[0].getData()).toBe(21);
-    expect(database.tables['t'].rows[1].cells[0].getData()).toBe(22);
+    expect(database.tables['t'].rows[0].cell(0).getData()).toBe(21);
+    expect(database.tables['t'].rows[1].cell(0).getData()).toBe(22);
   })
 
   test('CREATE and INSERT multiple columns, multiple values', () => {
@@ -70,12 +70,12 @@ describe("execute()", () => {
     expect(database.tables['l'].rows.length).toBe(2);
 
     // First row
-    expect(database.tables['l'].rows[0].cells[0].getData()).toBe('Tim');
-    expect(database.tables['l'].rows[0].cells[1].getData()).toBe(30);
+    expect(database.tables['l'].rows[0].cell(0).getData()).toBe('Tim');
+    expect(database.tables['l'].rows[0].cell(1).getData()).toBe(30);
 
     // Second row
-    expect(database.tables['l'].rows[1].cells[0].getData()).toBe('Liz');
-    expect(database.tables['l'].rows[1].cells[1].getData()).toBe(21);
+    expect(database.tables['l'].rows[1].cell(0).getData()).toBe('Liz');
+    expect(database.tables['l'].rows[1].cell(1).getData()).toBe(21);
   });
 
   test('simple SELECT', () => {

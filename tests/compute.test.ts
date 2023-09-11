@@ -1,18 +1,9 @@
 import compute, { BinaryExpression, Expression, ExpressionList, Literal, LiteralValue, NumberLiteral, StringLiteral, analyzeExpression } from "../compute"
 import { ColumnRef } from "../execute";
 import Table from "../storage/table";
+import { columnRef, expression } from "./helpers";
 
 describe("Compute", () => {
-
-  function expression(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue):BinaryExpression {
-    return {
-      type: "binary_expr",
-      left: typeof left == "object" ? left as Expression: literal(left),
-      right: typeof right == "object" ? right as Expression: literal(right),
-      operator: operator
-    }
-  }
-
   function run(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue) {
     let expr = expression(left, operator, right);
     return compute(expr)
@@ -24,43 +15,6 @@ describe("Compute", () => {
       return compute(expr, row, table.columnIndexMap);
     });
   }
-
-  function columnRef(name:string):ColumnRef {
-    return {
-      type: "column_ref",
-      table: null,
-      column: name
-    }
-  }
-
-  function literal(value:LiteralValue):Literal {
-    if (value == null) {
-      return {
-        type: "null",
-        value: null
-      }
-    }
-
-    switch(typeof value) {
-      case "string":
-        return {
-          type: "single_quote_string",
-          value: value
-        }
-      case "number":
-        return {
-          type: "number",
-          value: value
-        }
-      case "boolean":
-        return {
-          type: "bool",
-          value: value
-        }
-      default: 
-        throw new Error("Unexpected literal type: " + typeof value);
-    }
-  } 
 
   test("analyzer doesn't pull any columns on literals", () => {
     let requiredColumns = analyzeExpression(
