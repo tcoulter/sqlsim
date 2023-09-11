@@ -9,13 +9,15 @@ import {
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { ComputedTable, RowFilter } from "./storage/table";
+import Table, { ComputedTable, JoinType, JoinedTable, RowFilter } from "./storage/table";
 import compute, { BinaryExpression } from "./compute";
 
 type TableSpecifier = {
   db: string,
   table: string, 
-  as: string
+  as: string,
+  join?: "INNER JOIN",
+  on?: BinaryExpression
 };
 
 // There's a lot to be desired from the AST types...
@@ -54,7 +56,7 @@ interface Select extends ASTSelect {
   type: "select",
   from: TableSpecifier[], // This will need to change later wrt subqueries
   columns: ASTColumn[] | "*" // Remove the any[]
-  where: BinaryExpression | null
+  where: BinaryExpression | null,
 }
 
 export default function execute(sql:string, storage?:Storage) {
@@ -179,7 +181,23 @@ function insert(ast:Insert, storage:Storage):Commit {
 
 function select(ast:Select, storage:Storage):Table {
   let database = getDatabase(ast.from[0].db, storage);
+  
+
+  // Process source tables (e.g., joins) before doing anything
   let table = database.getTable(ast.from[0].table);
+
+  for (var fromIndex = 1; fromIndex < ast.from.length; fromIndex++) {
+    let newFromDefinition = ast.from[fromIndex];
+
+    if (typeof newFromDefinition.join != "undefined") {
+      table = new JoinedTable({
+        type: newFromDefinition.join.toLowerCase().replace("join", "").trim() as JoinType,
+        left: table,
+        right: database.getTable(newFromDefinition.table),
+        on: newFromDefinition.on as BinaryExpression
+      });
+    }
+  }
 
   let projectedColumns:Array<string>|undefined = undefined;
   let rowFilters:Array<RowFilter> = [];

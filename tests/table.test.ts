@@ -9,16 +9,16 @@ describe("ComputedTable", () => {
     let newData:Array<CellData> = ["Timmma", 31];
 
     let table = new Table("People", ["name", "age"]);
-    let row = new Row(expectedData);
-
-    table.rows.push(row);
-
+    table.insert(expectedData)
+   
     // We're going to do direct updates to the row rather than 
     // through any update mechanism (doesn't exist yet as of this writing).
 
     let lockedTable = new ComputedTable({table});
 
-    row.put(newData);
+    // No update yet, so we have to get the row itself
+    let rows:Array<Row> = table.getRows();
+    rows[0].put(newData);
 
     expect(lockedTable.getData()).toEqual([expectedData]);
     expect(table.getData()).toEqual([newData]);
@@ -54,7 +54,7 @@ describe("ComputedTable", () => {
 
     let lockedTable = new ComputedTable({table});
 
-    table.rows[1].delete();
+    table.getRows()[1].delete();
 
     expect(lockedTable.getData()).toEqual([
       firstRow,
@@ -188,5 +188,42 @@ describe("JoinedTable", () => {
     ])
   })
 
+  test("work the same when locked in computed tables", () => {
+    // A computed table is the final object type used before directly computing data
+    // All select statements, even with joins, will eventually result in a computed table. 
+
+    let people = new Table("People", ["name", "age", "from_id"]);
+    let countries = new Table("Countries", ["country_id", "country_name"]);
+    
+    people.insert([
+      ["Tim", 30, 1],
+      ["Liz", 21, 2],
+      ["Russ", 47, null]  // Note Russ has no from_id
+    ]);
+
+    countries.insert([
+      [1, "USA"],
+      [2, "Canada"],
+      [3, "Mexico"]
+    ]);
+
+    let innerJoin = new JoinedTable({
+      type: "inner",
+      left: people, 
+      right: countries,
+      on: expression(columnRef("from_id"), "=", columnRef("country_id"))
+    });
+
+    let computed = new ComputedTable({
+      table: innerJoin
+    });
+
+    expect(computed.columns.length).toBe(5);
+    expect(computed.columns).toEqual(people.columns.concat(countries.columns));
+    expect(computed.getData()).toEqual([
+      ["Tim", 30, 1, 1, "USA"],
+      ["Liz", 21, 2, 2, "Canada"]
+    ])
+  })
   // TODO: Make sure joined tables respect row commits
 })

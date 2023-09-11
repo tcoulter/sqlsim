@@ -1,6 +1,6 @@
-import compute, { BinaryExpression, ComputationResult } from "../compute";
+import compute, { BinaryExpression } from "../compute";
 import { CellData } from "./cell";
-import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
+import { Commit, Committed, getLatestCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
 
 export type ColumnIndexMap = Record<string, number>;
@@ -8,7 +8,7 @@ export type ColumnIndexMap = Record<string, number>;
 export default class Table extends Committed {
   name:string;
   columns:Array<string> = [];
-  rows:Array<Row> = [];
+  #rows:Array<Row> = [];
   columnIndexMap:ColumnIndexMap = {};
   sourceDataCellCount:number;
   
@@ -35,7 +35,7 @@ export default class Table extends Committed {
         throw new Error("Unexpected number of columns inserted into table " + this.name);
       }
   
-      this.rows.push(
+      this.#rows.push(
         new Row(values)
       );
     })
@@ -54,7 +54,7 @@ export default class Table extends Committed {
   }
 
   getRows(commit?:Commit):Array<Row> {
-    return this.rows.filter((row) => {
+    return this.#rows.filter((row) => {
       // If no commit, return the row. 
       if (typeof commit == "undefined") {
         return !row.isDeleted();
@@ -84,6 +84,7 @@ export type ComputedTableOptions = {
 };
 
 export class ComputedTable extends Table {
+  baseTable:Table;
   lockedAt:Commit; 
   rowFilters:Array<RowFilter>;
 
@@ -91,11 +92,12 @@ export class ComputedTable extends Table {
     let columns = projectedColumns || table.columns;
     super(table.name, columns, table.createdAt);
 
-    // Our computed table will use the given table as its data source
-    this.rows = table.rows;
+    this.baseTable = table;
+
+    // // Our computed table will use the given table as its data source
+    // this.#rows = table.#rows;
 
     // Rewrite the a columnIndexMap to to point to source column indexes
-    // This is O(n^2) but there's a low amount of columns almost always
     columns.forEach((columnName) => {
       let sourceColumnIndex = table.columnIndexMap[columnName];
 
@@ -123,7 +125,7 @@ export class ComputedTable extends Table {
       commit = this.lockedAt
     }
 
-    return super.getRows(commit);
+    return this.baseTable.getRows(commit);
   }
 
   getData(commit?:Commit):Array<Array<CellData>> {
@@ -156,9 +158,6 @@ export class ComputedTable extends Table {
 
 export type JoinType = "left" | "right" | "inner" | "full";
 
-// For a JoinedTable, we extend a ComputedTable which 
-// acts as the left part of the join. 
-
 export type JoinedTableOptions = {
   type: JoinType,
   left: Table,
@@ -171,14 +170,18 @@ export class JoinedTable extends Table {
   lockedAt:Commit; 
 
   type:JoinType;
+  left:Table;
   right:Table;
   on:BinaryExpression;
 
   constructor({type, left, right, on, commit}:JoinedTableOptions) {
     let columns = left.columns.concat(right.columns);
     super("Joined Table", columns, left.createdAt);
-    this.rows = left.rows;
     this.type = type;
+
+    this.left = new ComputedTable({
+      table: left
+    })
 
     this.right = new ComputedTable({
       table: right
@@ -217,7 +220,7 @@ export class JoinedTable extends Table {
       commit = this.lockedAt
     }
 
-    let leftRows = super.getRows(commit); 
+    let leftRows = this.left.getRows(commit); 
     let rightRows = this.right.getRows(commit);
 
     let newRows:Array<Row> = [];
@@ -258,11 +261,8 @@ export class JoinedTable extends Table {
     if (this.type == "right" || this.type == "full") {
       rightMatches.forEach((wasFound, rightRow) => {
         if (wasFound == false) {
-          // The left (this table) sourceDataCellCount was updated on intialization
-          // to include counts for the right data (to appear as though it is one big array).
-          // We have to recalculate it by subtracting. (This is smelly, but whatevs).
           newRows.push(new JoinedRow(
-            new Row(new Array(this.sourceDataCellCount - this.right.sourceDataCellCount).fill(null)),
+            new Row(new Array(this.left.sourceDataCellCount).fill(null)),
             rightRow
           ))
         }

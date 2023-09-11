@@ -1,5 +1,6 @@
 import execute from "../execute";
 import Storage from "../storage"
+import Row from "../storage/row";
 
 describe("execute()", () => {
   test("simple CREATE TABLE", () => {
@@ -28,10 +29,13 @@ describe("execute()", () => {
     `);
 
     let database = storage.databases['default'];
+    let table = database.getTable('t');
 
-    expect(database.tables['t'].rows.length).toBe(1);
-    expect(database.tables['t'].rows[0].numCells()).toBe(1);
-    expect(database.tables['t'].rows[0].cell(0).getData()).toBe(20);
+    let rows:Array<Row> = table.getRows();
+
+    expect(rows.length).toBe(1);
+    expect(rows[0].numCells()).toBe(1);
+    expect(rows[0].cell(0).getData()).toBe(20);
   })
 
   test('INSERT with multiple values', () => {
@@ -44,10 +48,13 @@ describe("execute()", () => {
     `);
 
     let database = storage.databases['default'];
+    let table = database.getTable('t');
 
-    expect(database.tables['t'].rows.length).toBe(2);
-    expect(database.tables['t'].rows[0].cell(0).getData()).toBe(21);
-    expect(database.tables['t'].rows[1].cell(0).getData()).toBe(22);
+    let rows:Array<Row> = table.getRows();
+
+    expect(rows.length).toBe(2);
+    expect(rows[0].cell(0).getData()).toBe(21);
+    expect(rows[1].cell(0).getData()).toBe(22);
   })
 
   test('CREATE and INSERT multiple columns, multiple values', () => {
@@ -63,19 +70,23 @@ describe("execute()", () => {
     let database = storage.databases['default'];
 
     expect(database.hasTable('l')).toBe(true);
-    expect(database.tables['l'].columns.length).toBe(2);
-    expect(database.tables['l'].columns[0]).toBe('name');
-    expect(database.tables['l'].columns[1]).toBe('age');
 
-    expect(database.tables['l'].rows.length).toBe(2);
+    let table = database.getTable('l');
+    let rows:Array<Row> = table.getRows();
+
+    expect(table.columns.length).toBe(2);
+    expect(table.columns[0]).toBe('name');
+    expect(table.columns[1]).toBe('age');
+
+    expect(rows.length).toBe(2);
 
     // First row
-    expect(database.tables['l'].rows[0].cell(0).getData()).toBe('Tim');
-    expect(database.tables['l'].rows[0].cell(1).getData()).toBe(30);
+    expect(rows[0].cell(0).getData()).toBe('Tim');
+    expect(rows[0].cell(1).getData()).toBe(30);
 
     // Second row
-    expect(database.tables['l'].rows[1].cell(0).getData()).toBe('Liz');
-    expect(database.tables['l'].rows[1].cell(1).getData()).toBe(21);
+    expect(rows[1].cell(0).getData()).toBe('Liz');
+    expect(rows[1].cell(1).getData()).toBe(21);
   });
 
   test('simple SELECT', () => {
@@ -218,4 +229,34 @@ describe("execute()", () => {
       ["Preeti", 27, "Accounting"]
     ])
   });
+
+  test('SELECT with an inner join', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        from_id INTEGER
+      );
+    
+      CREATE TABLE Countries (
+        country_id INTEGER,
+        country_name VARCHAR(20)
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 47, NULL);
+      INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada'), (3, 'Mexico');
+    
+      SELECT * FROM People JOIN Countries ON from_id = country_id;
+    `);
+
+    expect(results.length).toBe(5);
+    expect(Array.isArray(results[4])).toBe(true);
+
+    expect(results[4]).toEqual([
+      ['Tim', 30, 1, 1, 'USA'],
+      ['Liz', 21, 2, 2, 'Canada']
+    ]);
+  })
+
+  // TODO: left, right and full joins (need to study parser)
 })
