@@ -17,16 +17,17 @@ type TableSpecifier = {
   as: string
 };
 
-
 // There's a lot to be desired from the AST types...
 // We have to fill out some details here on our own. 
 
+export type ColumnRef = {
+  type: "column_ref",
+  table: null, // TODO: Figure this one out
+  column: string // column name
+}
+
 type CreateDefinition = {
-  column: {
-    type: "column_ref",
-    table: null, // TODO: Figure this one out
-    column: string // column name
-  }, 
+  column: ColumnRef,
   definition: {
     dataType: any, // TODO: Fill this out
     suffix: Array<any> // TODO: Fill this out
@@ -67,7 +68,7 @@ export default function execute(sql:string, storage?:Storage) {
     ast = [ast] as Array<AST>;
   }
 
-  //console.log(JSON.stringify(ast, null, 2));
+  console.log(JSON.stringify(ast, null, 2));
 
   let results = executeFromAST(ast as AST[], storage);
 
@@ -180,7 +181,7 @@ function select(ast:Select, storage:Storage):Table {
   let database = getDatabase(ast.from[0].db, storage);
   let table = database.getTable(ast.from[0].table);
 
-  let projectedColumns:Array<string>|null = null;
+  let projectedColumns:Array<string>|undefined = undefined;
   
   // TODO: We're just gonna project all the columns whenever we find
   // a star (*). Makes coding easier but likely will incur a performance hit. 

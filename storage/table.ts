@@ -4,14 +4,14 @@ import Row from "./row";
 
 class Table extends Committed {
   name:string;
-  columns:Array<String> = [];
+  columns:Array<string> = [];
   rows:Array<Row> = [];
   
-  constructor(name:string, columns:Array<String>, commit?:Commit) {
+  constructor(name:string, columns:Array<string>, commit?:Commit) {
     super("table", commit);
 
     this.name = name;
-    this.columns = columns
+    this.columns = columns;
   }
 
   insert(values:Array<CellData>) {
@@ -24,7 +24,7 @@ class Table extends Committed {
     );
   }
 
-  project(columns:Array<String>) {
+  project(columns:Array<string>) {
     // Lock it like it's hot
     return new ComputedTable(this, columns);
   }
@@ -50,27 +50,37 @@ class Table extends Committed {
   } 
 }
 
+export type RowFilter = Function;
+
+export type ComputedTableOptions = {
+  table: Table, 
+  projectedColumns?:Array<string>,
+  rowFilters: Array<RowFilter>,
+  commit?:Commit
+};
+
 export class ComputedTable extends Table {
   lockedAt:Commit; 
-  projectedColumnIndexes:Array<number>|null = null;
+  columnIndexMap:Record<string, number> = {};
 
-  constructor(table:Table, projectedColumns:Array<String>|null = null, commit?:Commit) {
-    super(table.name, table.columns, table.createdAt);
+  constructor(table:Table, projectedColumns?:Array<string>, commit?:Commit) {
+    let columns = projectedColumns || table.columns;
+    super(table.name, columns, table.createdAt);
+
+    // Our computed table will use the given table as its data source
     this.rows = table.rows;
 
-    if (projectedColumns != null) {
-      this.projectedColumnIndexes = projectedColumns.map((columnName) => {
-        // TODO: This indexOf can be made faster if we maintained a
-        // column name to index map. 
-        let possibleIndex = this.columns.indexOf(columnName);
+    // Write the a columnIndexMap to map column names to source columns
+    // This is O(n^2) but there's a low amount of columns almost always
+    columns.forEach((columnName) => {
+      let sourceColumnIndex = table.columns.indexOf(columnName);
 
-        if (possibleIndex < 0) {
-          throw new Error("Column " + columnName + " does not exist in table " + this.name);
-        }
+      if (sourceColumnIndex < 0) {
+        throw new Error("Column " + columnName + " does not exist in table " + this.name);
+      }
 
-        return possibleIndex;
-      }); 
-    }
+      this.columnIndexMap[columnName] = sourceColumnIndex;
+    })
 
     this.lockedAt = commit || getLatestCommit();
   }
@@ -88,17 +98,12 @@ export class ComputedTable extends Table {
       commit = this.lockedAt
     }
 
-    if (this.projectedColumnIndexes == null) {
-      return this.getRows(commit).map((row) => {
-        return row.getData(commit);
-      })
-    } else {
-      return this.getRows(commit).map((row) => {
-        return (this.projectedColumnIndexes as Array<number>).map((index) => {
-          return row.cells[index].getData(commit);
-        });
+    return this.getRows(commit).map((row) => {
+      return this.columns.map((columnName) => {
+        let sourceIndex = this.columnIndexMap[columnName];
+        return row.cells[sourceIndex].getData(commit);
       });
-    }
+    });
   }
 }
 

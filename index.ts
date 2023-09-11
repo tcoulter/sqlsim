@@ -5,14 +5,15 @@ import execute from "./execute";
 let storage = new Storage();
 
 let results = execute(`
-  CREATE TABLE T (
+  CREATE TABLE People (
+    name VARCHAR(20),
     age INTEGER
   );
 
-  INSERT INTO T VALUES (20), (21);
+  INSERT INTO People VALUES ('Tim', 20), ('Liz', 21);
 
-  SELECT * FROM T;
+  SELECT * FROM People WHERE age * 2 > 5.4;
 `, storage);
 
-console.log(JSON.stringify(results, null, 2));
+//console.log(JSON.stringify(results, null, 2));
 
