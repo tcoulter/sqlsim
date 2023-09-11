@@ -1,8 +1,15 @@
-import {Parser, AST, Create as ASTCreate, Insert_Replace as ASTInsert, Select as ASTSelect} from "node-sql-parser";
+import {
+  Parser, 
+  AST, 
+  Create as ASTCreate, 
+  Insert_Replace as ASTInsert, 
+  Select as ASTSelect,
+  Column as ASTColumn
+} from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { LockedTable } from "./storage/table";
+import Table, { ComputedTable } from "./storage/table";
 
 type TableSpecifier = {
   db: string,
@@ -43,7 +50,8 @@ interface Insert extends ASTInsert {
 
 interface Select extends ASTSelect {
   type: "select",
-  from: TableSpecifier[] // This will need to change later wrt subqueries
+  from: TableSpecifier[], // This will need to change later wrt subqueries
+  columns: ASTColumn[] | "*" // Remove the any[]
 }
 
 export default function execute(sql:string, storage?:Storage) {
@@ -172,9 +180,34 @@ function select(ast:Select, storage:Storage):Table {
   let database = getDatabase(ast.from[0].db, storage);
   let table = database.getTable(ast.from[0].table);
 
-  // Assume everything is SELECT * for now. 
+  let projectedColumns:Array<string>|null = null;
   
-  // Return a locked version of the table so this intance will return 
+  // TODO: We're just gonna project all the columns whenever we find
+  // a star (*). Makes coding easier but likely will incur a performance hit. 
+  // 
+  // Note that we're checking for the case where ast.columns is *. 
+  // This looks like it won't ever happen, but it's an allowed possibility
+  // by the type provided by the parser. Note that we'll instead get * as a 
+  // column_ref that the below code expands out. 
+  if (ast.columns != "*") {
+    projectedColumns = [];
+
+    ast.columns.forEach((column) => {
+      if (column.expr.type == "column_ref") {
+        let columnName = column.expr.column;
+
+        if (columnName == "*") {
+          (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
+        } else {
+          (projectedColumns as Array<string>).push(columnName);
+        }
+      } else {
+        throw new Error("Only column names are supported in SELECT right now.");
+      }
+    });
+  }
+
+  // Return a locked version of the table so this intsance will return 
   // no new data even if cell objects are updated. 
-  return new LockedTable(table);
+  return new ComputedTable(table, projectedColumns);
 }

@@ -2,17 +2,12 @@ import execute from "../execute";
 import Storage from "../storage"
 
 describe("execute()", () => {
-  // We're sharing storage here. All test will rely on each other
-  // in a specific order. Think of it like running SQL statemnets
-  // in sequence. 
-  let storage = new Storage();
-
   test("simple CREATE TABLE", () => {
-    execute(`
+    let {storage} = execute(`
       CREATE Table t (
         age INT
-      )
-    `, storage);
+      );
+    `);
 
     expect(Object.keys(storage.databases).length).toBe(1);
 
@@ -24,9 +19,13 @@ describe("execute()", () => {
   }); 
 
   test('simple INSERT INTO', () => {
-    execute(`
+    let {storage} = execute(`
+      CREATE Table t (
+        age INT
+      );
+
       INSERT INTO t VALUES (20)
-    `, storage);
+    `);
 
     let database = storage.databases['default'];
 
@@ -36,28 +35,30 @@ describe("execute()", () => {
   })
 
   test('INSERT with multiple values', () => {
-    execute(`
+    let {storage} = execute(`
+      CREATE Table t (
+        age INT
+      );
+
       INSERT INTO t VALUES (21), (22)
-    `, storage);
+    `);
 
     let database = storage.databases['default'];
 
-    // Remember, this tes relys on the ones before it, so if we add 
-    // two items, there should be three rows. 
-    expect(database.tables['t'].rows.length).toBe(3);
-    expect(database.tables['t'].rows[1].cells[0].getData()).toBe(21);
-    expect(database.tables['t'].rows[2].cells[0].getData()).toBe(22);
+    expect(database.tables['t'].rows.length).toBe(2);
+    expect(database.tables['t'].rows[0].cells[0].getData()).toBe(21);
+    expect(database.tables['t'].rows[1].cells[0].getData()).toBe(22);
   })
 
   test('CREATE and INSERT multiple columns, multiple values', () => {
-    execute(`
+    let {storage} = execute(`
       CREATE TABLE l (
         name VARCHAR(20),
         age INT
       );
 
       INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
-    `, storage);
+    `);
 
     let database = storage.databases['default'];
 
@@ -75,5 +76,97 @@ describe("execute()", () => {
     // Second row
     expect(database.tables['l'].rows[1].cells[0].getData()).toBe('Liz');
     expect(database.tables['l'].rows[1].cells[1].getData()).toBe(21);
+  });
+
+  test('simple SELECT', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE l (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT * FROM l;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim', 30],
+      ['Liz', 21]
+    ])
+  })
+
+  test('SELECT with column filtering via projection', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE l (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT name FROM l;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim'],
+      ['Liz']
+    ])
+  })
+
+  test('SELECT with column reordering via projection', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE l (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT age, name FROM l;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      [30, 'Tim'],
+      [21, 'Liz']
+    ])
+  })
+
+  test('SELECT with column expansion via projection', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE l (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO l VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT age, age, age FROM l;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      [30, 30, 30],
+      [21, 21, 21]
+    ])
   })
 })

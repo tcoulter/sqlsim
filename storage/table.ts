@@ -24,7 +24,12 @@ class Table extends Committed {
     );
   }
 
-  getData(commit?:Commit):Array<Array<CellData>> {
+  project(columns:Array<String>) {
+    // Lock it like it's hot
+    return new ComputedTable(this, columns);
+  }
+
+  getRows(commit?:Commit):Array<Row> {
     return this.rows.filter((row) => {
       // If no commit, return the row. 
       if (typeof commit == "undefined") {
@@ -35,20 +40,43 @@ class Table extends Committed {
       // if the row wasn't deleted at this commit
       // and the row was created before the expected commit. 
       return !row.isDeleted(commit) && row.createdAt <= commit;
-    }).map((row) => {
+    })
+  }
+
+  getData(commit?:Commit):Array<Array<CellData>> {
+    return this.getRows(commit).map((row) => {
       return row.getData(commit);
     })
   } 
 }
 
-export class LockedTable extends Table {
+export class ComputedTable extends Table {
   lockedAt:Commit; 
+  projectedColumnIndexes:Array<number>|null = null;
 
-  constructor(table:Table, commit?:Commit) {
-    super(table.name, table.columns);
+  constructor(table:Table, projectedColumns:Array<String>|null = null, commit?:Commit) {
+    super(table.name, table.columns, table.createdAt);
+    this.rows = table.rows;
+
+    if (projectedColumns != null) {
+      this.projectedColumnIndexes = projectedColumns.map((columnName) => {
+        // TODO: This indexOf can be made faster if we maintained a
+        // column name to index map. 
+        let possibleIndex = this.columns.indexOf(columnName);
+
+        if (possibleIndex < 0) {
+          throw new Error("Column " + columnName + " does not exist in table " + this.name);
+        }
+
+        return possibleIndex;
+      }); 
+    }
 
     this.lockedAt = commit || getLatestCommit();
-    this.rows = table.rows;
+  }
+
+  insert(values:Array<CellData>) {
+    throw new Error("Locked tables are immutable"); 
   }
 
   getData(commit?:Commit):Array<Array<CellData>> {
@@ -60,7 +88,17 @@ export class LockedTable extends Table {
       commit = this.lockedAt
     }
 
-    return super.getData(commit);
+    if (this.projectedColumnIndexes == null) {
+      return this.getRows(commit).map((row) => {
+        return row.getData(commit);
+      })
+    } else {
+      return this.getRows(commit).map((row) => {
+        return (this.projectedColumnIndexes as Array<number>).map((index) => {
+          return row.cells[index].getData(commit);
+        });
+      });
+    }
   }
 }
 

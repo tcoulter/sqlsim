@@ -1,7 +1,7 @@
 import Cell, { CellData } from "./cell";
-import { Commit, Committed, newCommit } from "./commit";
+import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 
-class Row extends Committed {
+export default class Row extends Committed {
   cells:Array<Cell> = [];
 
   constructor(data:Array<CellData>, commit?:Commit) {
@@ -10,18 +10,6 @@ class Row extends Committed {
     data.forEach((value) => {
       this.cells.push(new Cell(value, this.createdAt));
     })
-  }
-
-  // TODO: Expand this to do actual projection rather than
-  // just column filtering. 
-  project(columnIndexes:Array<number>) {
-    let newCells:Array<Cell> = [];
-
-    columnIndexes.sort().forEach((index) => {
-      newCells.push(this.cells[index]);
-    })
-
-    return newCells;
   }
 
   put(data:Array<CellData>, commit:Commit = newCommit()) {
@@ -43,4 +31,33 @@ class Row extends Committed {
   }
 }
 
-export default Row; 
+// export class LockedRow extends Row {
+//   lockedAt:Commit;
+//   lockedIndexes:Array<number>;
+
+//   constructor(row:Row, lockedIndexes:Array<number>, commit?:Commit) {
+//     super([], row.createdAt);
+//     this.cells = row.cells;
+
+//     this.lockedAt = commit || getLatestCommit();
+//     this.lockedIndexes = lockedIndexes;
+//   }
+
+//   put(data:Array<CellData>, commit?:Commit) {
+//     throw new Error("Locked rows are immutable.");
+//   }
+
+//   getData(commit?:Commit):Array<CellData> {
+//     if (typeof commit == "undefined") {
+//       commit = this.lockedAt;
+//     }
+
+//     if (commit > this.lockedAt) {
+//       commit = this.lockedAt
+//     }
+
+//     return this.lockedIndexes.map((index) => {
+//       return this.cells[index].getData(commit);
+//     });
+//   }
+// }
