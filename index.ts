@@ -12,7 +12,7 @@ let results = execute(`
 
   INSERT INTO People VALUES ('Tim', 20), ('Liz', 21);
 
-  SELECT * FROM People WHERE age * 2 > 5.4;
+  SELECT * FROM People WHERE age * 2 = true;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));

@@ -68,7 +68,7 @@ export default function execute(sql:string, storage?:Storage) {
     ast = [ast] as Array<AST>;
   }
 
-  console.log(JSON.stringify(ast, null, 2));
+  //console.log(JSON.stringify(ast, null, 2));
 
   let results = executeFromAST(ast as AST[], storage);
 

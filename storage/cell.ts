@@ -1,7 +1,7 @@
 import searchClosest from "../helpers/searchclosest";
 import { Commit, newCommit } from "./commit";
 
-export type CellData = number|String|null;
+export type CellData = number|string|null|boolean;
 
 export default class Cell {
   data:Record<number, CellData> = {};

@@ -2,31 +2,49 @@ import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row from "./row";
 
-class Table extends Committed {
+export type ColumnIndexMap = Record<string, number>;
+
+export default class Table extends Committed {
   name:string;
   columns:Array<string> = [];
   rows:Array<Row> = [];
+  columnIndexMap:ColumnIndexMap = {};
   
   constructor(name:string, columns:Array<string>, commit?:Commit) {
     super("table", commit);
 
     this.name = name;
     this.columns = columns;
+
+    this.columns.forEach((columnName, index) => {
+      this.columnIndexMap[columnName] = index;
+    })
   }
 
-  insert(values:Array<CellData>) {
-    if (values.length != this.columns.length) {
-      throw new Error("Unexpected number of columns inserted into table " + this.name);
+  insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>) {
+    // Single row? 
+    if (!Array.isArray(cellOrRowData[0])) {
+      cellOrRowData = [cellOrRowData as Array<CellData>];
     }
 
-    this.rows.push(
-      new Row(values)
-    );
+    (cellOrRowData as Array<Array<CellData>>).forEach((values) => {
+      if (values.length != this.columns.length) {
+        throw new Error("Unexpected number of columns inserted into table " + this.name);
+      }
+  
+      this.rows.push(
+        new Row(values)
+      );
+    })
   }
 
   project(columns:Array<string>) {
     // Lock it like it's hot
     return new ComputedTable(this, columns);
+  }
+
+  hasColumn(columnName:string) {
+    return typeof this.columnIndexMap[columnName] != "undefined";
   }
 
   getRows(commit?:Commit):Array<Row> {
@@ -61,7 +79,6 @@ export type ComputedTableOptions = {
 
 export class ComputedTable extends Table {
   lockedAt:Commit; 
-  columnIndexMap:Record<string, number> = {};
 
   constructor(table:Table, projectedColumns?:Array<string>, commit?:Commit) {
     let columns = projectedColumns || table.columns;
@@ -70,12 +87,12 @@ export class ComputedTable extends Table {
     // Our computed table will use the given table as its data source
     this.rows = table.rows;
 
-    // Write the a columnIndexMap to map column names to source columns
+    // Rewrite the a columnIndexMap to to point to source column indexes
     // This is O(n^2) but there's a low amount of columns almost always
     columns.forEach((columnName) => {
-      let sourceColumnIndex = table.columns.indexOf(columnName);
+      let sourceColumnIndex = table.columnIndexMap[columnName];
 
-      if (sourceColumnIndex < 0) {
+      if (typeof sourceColumnIndex == "undefined") {
         throw new Error("Column " + columnName + " does not exist in table " + this.name);
       }
 
@@ -100,11 +117,8 @@ export class ComputedTable extends Table {
 
     return this.getRows(commit).map((row) => {
       return this.columns.map((columnName) => {
-        let sourceIndex = this.columnIndexMap[columnName];
-        return row.cells[sourceIndex].getData(commit);
+        return row.cells[this.columnIndexMap[columnName]].getData(commit);
       });
     });
   }
 }
-
-export default Table;
