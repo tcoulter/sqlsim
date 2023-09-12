@@ -24,8 +24,8 @@ More to come!
 - [x] SELECT ... FROM Table LEFT JOIN AnotherTable ON _expression_ (left joins)
 - [x] SELECT ... FROM Table RIGHT JOIN AnotherTable ON _expression_ (right joins)
 - [x] SELECT ... FROM Table FULL JOIN AnotherTable ON _expression_ (full joins)
-- [ ] AS for table names
-- [ ] AS for column names
+- [ ] SELECT ... FROM Table _AS NewName_ (AS for table names)
+- [ ] SELECT col1 _AS newname_ FROM ... (AS for column names)
 - [ ] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
 - [ ] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
