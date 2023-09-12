@@ -114,6 +114,8 @@ export class LockedTable extends Table {
 
     let rows = this.getRows(commit);
 
+    // Please note that this block does the bulk of the work for 
+    // projected tables. 
     return rows.map((row) => {
       return this.columns.map((columnName) => {
         let columnIndex = this.columnIndexMap[columnName];
@@ -217,13 +219,8 @@ export class JoinedTable extends Table {
     super("Joined Table", columns, left.createdAt);
     this.type = type;
 
-    this.left = new FilteredTable({
-      table: left
-    })
-
-    this.right = new FilteredTable({
-      table: right
-    });
+    this.left = new LockedTable(left);
+    this.right = new LockedTable(right);
 
     this.on = on;
 
