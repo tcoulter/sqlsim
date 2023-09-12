@@ -11,7 +11,8 @@ More to come!
 ### Keywords Supported 
 
 - [x] CREATE TABLE (see below)
-- [x] INSERT INTO
+- [x] INSERT INTO Table VALUES ... (all-column insert)
+- [ ] INSERT INTO Table _(col1, col2, ...)_ VALUES ... (column-specific inserts)
 - [x] SELECT * FROM Table (basic selection)
 - [x] SELECT _col1_, _col2_, ... FROM Table (column filtering via projection)
 - [x] SELECT _col3_, _col3_, _col3_ FROM Table (column expansion via projection)
@@ -26,6 +27,7 @@ More to come!
 #### CREATE TABLE 
 
 - [ ] Data type constraints (e.g., INTEGER, VARCHAR(20), etc.)
+- [ ] AUTO_INCREMENT constraint
 - [ ] UNIQUE constraint
 - [ ] NOT NULL constraint
 - [ ] PRIMARY KEY constraint
