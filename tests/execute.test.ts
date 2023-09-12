@@ -181,6 +181,52 @@ describe("execute()", () => {
     ])
   })
 
+  test('SELECT with column expression within projection', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT age > 25 FROM People;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      [true],
+      [false]
+    ])
+  })
+
+  test('SELECT with multiple column expressions within projection', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21);
+
+      SELECT age, age > 25, age + 4  FROM People;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(typeof results[0]).toBe('number');
+    expect(typeof results[1]).toBe('number');
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      [30, true, 34],
+      [21, false, 25]
+    ])
+  })
+
   test('SELECT with simple WHERE clause', () => {
     let {results, storage} = execute(`
       CREATE TABLE l (
@@ -286,6 +332,8 @@ describe("execute()", () => {
       [null, null, null, 3, "Mexico"]
     ]);
   })
+
+
 
   // TODO: left, right and full joins (need to study parser)
 })

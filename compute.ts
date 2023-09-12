@@ -47,22 +47,28 @@ export type BooleanLiteral = {
 export type LiteralValue = Literal['value'];
 export type ComputationResult = LiteralValue;
 
-export function analyzeExpression(expr:ColumnRef|Literal|BinaryExpression|ExpressionList):Array<string> {
+export function stringifyExpression(expr:ColumnRef|Literal|BinaryExpression|ExpressionList, depth:number = 0):string {
   switch(expr.type) {
     case "column_ref": 
-      return [expr.column]
+      return expr.column;
     case "binary_expr": 
-      return analyzeExpression(expr.left).concat(analyzeExpression(expr.right));
+      let returnVal = stringifyExpression(expr.left, depth + 1) + expr.operator + stringifyExpression(expr.right, depth + 1);
+      if (depth > 0) {
+        returnVal = "(" + returnVal + ")";
+      }
+      return returnVal;
     case "expr_list": 
       return expr.value.map((item) => {
-        return analyzeExpression(item);
+        return stringifyExpression(item);
       }).reduce((previousValue, currentValue) => {
-        return previousValue.concat(currentValue);
-      }, []);
+        return previousValue + "," + currentValue;
+      }, "");
     case "null":
+      return "null";
     case "number":
+      return expr.value.toString();
     case "single_quote_string":
-      return [];
+      return "'" + expr.value.toString() + "'";
     default:
       // I want to have this error here for safety, but Typescript doesn't think we'll ever
       // run this line (neither do I). Added an 'any' to make Typescript happy and ensure
@@ -83,8 +89,11 @@ export default function compute(expr:ColumnRef|Literal|BinaryExpression|Expressi
     case "null": 
       return expr.value;
     case "column_ref": 
-      let dataIndex = columnIndexMap[expr.column];
+      // Here, column ref will always references a named column, hence the 'as number'
+      // TODO: Test this! 
+      let dataIndex:number = columnIndexMap[expr.column] as number;
       if (typeof dataIndex == "undefined") {
+        console.log(columnIndexMap);
         throw new Error("Cannot find column " + expr.column);
       }
       let value = row.cell(dataIndex).getData(commit);

@@ -3,7 +3,7 @@ import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
 
-export type ColumnIndexMap = Record<string, number>;
+export type ColumnIndexMap = Record<string, number|BinaryExpression>;
 
 export default class Table extends Committed {
   name:string;
@@ -41,11 +41,12 @@ export default class Table extends Committed {
     })
   }
 
-  project(columns:Array<string>) {
+  project(columns:Array<string>, computedColumns:ComputedColumnsList = {}) {
     // Lock it like it's hot
-    return new ComputedTable({
+    return new ProjectedTable({
       table: this, 
-      projectedColumns: columns
+      columns,
+      computedColumns
     });
   }
 
@@ -74,41 +75,15 @@ export default class Table extends Committed {
   } 
 }
 
-export type RowFilter = (table:ComputedTable, row:Row) => boolean;
-
-export type ComputedTableOptions = {
-  table: Table, 
-  projectedColumns?:Array<string>,
-  rowFilters?: Array<RowFilter>,
-  commit?:Commit
-};
-
-export class ComputedTable extends Table {
+export class LockedTable extends Table {
   baseTable:Table;
   lockedAt:Commit; 
-  rowFilters:Array<RowFilter>;
 
-  constructor({table, projectedColumns, rowFilters = [], commit}:ComputedTableOptions) {
-    let columns = projectedColumns || table.columns;
-    super(table.name, columns, table.createdAt);
-
+  constructor(table:Table, commit?:Commit) {
+    super(table.name, table.columns, table.createdAt);
     this.baseTable = table;
-
-    // // Our computed table will use the given table as its data source
-    // this.#rows = table.#rows;
-
-    // Rewrite the a columnIndexMap to to point to source column indexes
-    columns.forEach((columnName) => {
-      let sourceColumnIndex = table.columnIndexMap[columnName];
-
-      if (typeof sourceColumnIndex == "undefined") {
-        throw new Error("Column " + columnName + " does not exist in table " + this.name);
-      }
-
-      this.columnIndexMap[columnName] = sourceColumnIndex;
-    })
-
-    this.rowFilters = rowFilters;
+    this.columnIndexMap = table.columnIndexMap;
+    this.sourceDataCellCount = table.sourceDataCellCount;
     this.lockedAt = commit || getLatestCommit();
   }
 
@@ -139,6 +114,43 @@ export class ComputedTable extends Table {
 
     let rows = this.getRows(commit);
 
+    return rows.map((row) => {
+      return this.columns.map((columnName) => {
+        let columnIndex = this.columnIndexMap[columnName];
+        if (typeof columnIndex == "number") {
+          return row.cell(columnIndex).getData(commit);
+        } else {
+          // Binary expression
+          return compute(columnIndex, row, this.columnIndexMap, commit);
+        }
+      });
+    });
+  }
+}
+
+export type RowFilter = (table:FilteredTable, row:Row) => boolean;
+
+export type ComputedTableOptions = {
+  table: Table, 
+  rowFilters?: Array<RowFilter>,
+  commit?:Commit
+};
+
+export class FilteredTable extends LockedTable {
+  rowFilters:Array<RowFilter>;
+
+  constructor({table, rowFilters = [], commit}:ComputedTableOptions) {
+    super(table);
+
+    this.baseTable = table;
+
+    this.rowFilters = rowFilters;
+    this.lockedAt = commit || getLatestCommit();
+  }
+
+  getRows(commit?:Commit):Array<Row> {
+    let rows = super.getRows(commit);
+
     // Perform row filters. This is where WHERE clause processing happens. 
     if (this.rowFilters.length > 0) {
       this.rowFilters.forEach((rowFilter) => {
@@ -148,13 +160,39 @@ export class ComputedTable extends Table {
       });
     }
 
-    return rows.map((row) => {
-      return this.columns.map((columnName) => {
-        return row.cell(this.columnIndexMap[columnName]).getData(commit);
-      });
-    });
+    return rows;
   }
 }
+
+export type ComputedColumnsList = Record<string, BinaryExpression>;
+
+export type ProjectedTableOptions = {
+  table: Table,
+  columns: Array<string>,
+  computedColumns?: ComputedColumnsList,
+  commit?:Commit
+}
+
+export class ProjectedTable extends LockedTable {
+  constructor({table, columns, computedColumns = {}, commit}:ProjectedTableOptions) {
+    super(table);
+    this.columns = columns || table.columns;
+
+    // Rewrite the columnIndexMap so that computed columns are added
+    this.columnIndexMap = {};
+
+    // This block clones the original
+    Object.entries(table.columnIndexMap).forEach(([column, source]) => {
+      this.columnIndexMap[column] = source;
+    })
+
+    // Now add the computed columns in 
+    Object.entries(computedColumns).forEach(([column, expr]) => {
+      this.columnIndexMap[column] = expr;
+    }); 
+  }
+}
+
 
 export type JoinType = "left" | "right" | "inner" | "full";
 
@@ -179,11 +217,11 @@ export class JoinedTable extends Table {
     super("Joined Table", columns, left.createdAt);
     this.type = type;
 
-    this.left = new ComputedTable({
+    this.left = new FilteredTable({
       table: left
     })
 
-    this.right = new ComputedTable({
+    this.right = new FilteredTable({
       table: right
     });
 
@@ -205,7 +243,12 @@ export class JoinedTable extends Table {
 
     // Now add in the right columns, adjusting index to account for left values
     Object.entries(right.columnIndexMap).forEach(([rightColumn, rightColumnIndex]) => {
-      newColumnIndexMap[rightColumn] = left.sourceDataCellCount + rightColumnIndex;
+      if (typeof rightColumnIndex == "number") {
+        newColumnIndexMap[rightColumn] = left.sourceDataCellCount + rightColumnIndex;
+      } else {
+        // If binary expression, copy the expression
+        newColumnIndexMap[rightColumn] = rightColumnIndex;
+      }
     })
       
     this.columnIndexMap = newColumnIndexMap;

@@ -9,8 +9,8 @@ import {
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { ComputedTable, JoinType, JoinedTable, RowFilter } from "./storage/table";
-import compute, { BinaryExpression } from "./compute";
+import Table, { FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
+import compute, { BinaryExpression, stringifyExpression } from "./compute";
 
 type TableSpecifier = {
   db: string,
@@ -19,6 +19,11 @@ type TableSpecifier = {
   join?: "INNER JOIN",
   on?: BinaryExpression
 };
+
+type ColumnSpecifier = {
+  expr: ColumnRef | BinaryExpression,
+  as: string | null
+}
 
 // There's a lot to be desired from the AST types...
 // We have to fill out some details here on our own. 
@@ -55,7 +60,7 @@ interface Insert extends ASTInsert {
 interface Select extends ASTSelect {
   type: "select",
   from: TableSpecifier[], // This will need to change later wrt subqueries
-  columns: ASTColumn[] | "*" // Remove the any[]
+  columns: ColumnSpecifier[] | "*" // Remove the any[]
   where: BinaryExpression | null,
 }
 
@@ -199,48 +204,60 @@ function select(ast:Select, storage:Storage):Table {
     }
   }
 
-  let projectedColumns:Array<string>|undefined = undefined;
-  let rowFilters:Array<RowFilter> = [];
-  
-  // TODO: We're just gonna project all the columns whenever we find
-  // a star (*). Makes coding easier but likely will incur a performance hit. 
-  // 
-  // Note that we're checking for the case where ast.columns is *. 
-  // This looks like it won't ever happen, but it's an allowed possibility
-  // by the type provided by the parser. Note that we'll instead get * as a 
-  // column_ref that the below code expands out. 
-  if (ast.columns != "*") {
-    projectedColumns = [];
-
-    ast.columns.forEach((column) => {
-      if (column.expr.type == "column_ref") {
-        let columnName = column.expr.column;
-
-        if (columnName == "*") {
-          (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
-        } else {
-          (projectedColumns as Array<string>).push(columnName);
-        }
-      } else {
-        throw new Error("Only column names are supported in SELECT right now.");
-      }
-    });
-  }
-
   if (ast.where != null) {
+    let rowFilters:Array<RowFilter> = [];
     rowFilters.push((filtredTable, filteredRow) => {
       // TODO(?): Notice the !!. For now, lets not worry about a computation result
       // in the WHERE clause returning something other than a boolean. 
       // Let's assume that the parser takes care of that for us. 
       return !!compute(ast.where as BinaryExpression, filteredRow, filtredTable.columnIndexMap, filtredTable.lockedAt);
     })
+
+    table = new FilteredTable({
+      table,
+      rowFilters
+    })
+  }
+
+  // Do projection. 
+  // Note that we're checking for the case where ast.columns is *. 
+  // This looks like it won't ever happen, but it's an allowed possibility
+  // by the type provided by the parser. Note that we'll instead get * as a 
+  // column_ref that the below code expands out. 
+  if (ast.columns != "*") {
+    let projectedColumns:Array<string> = [];
+    let computedColumns:Record<string, BinaryExpression> = {};
+
+    ast.columns.forEach((column) => {
+      let columnName = "";
+      switch(column.expr.type) {
+        case "column_ref":
+          columnName = column.expr.column;
+
+          if (columnName == "*") {
+            (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
+          } else {
+            (projectedColumns as Array<string>).push(columnName);
+          }
+          break;
+        case "binary_expr": 
+          columnName = stringifyExpression(column.expr);
+          (projectedColumns as Array<string>).push(columnName);
+          computedColumns[columnName] = column.expr;
+          break;
+        default: 
+          throw new Error("Unsupported column type in projection: " + (column.expr as any).type);
+      }
+    });
+
+    table = new ProjectedTable({
+      table,
+      columns: projectedColumns,
+      computedColumns
+    })
   }
 
   // Return a locked version of the table so this intsance will return 
   // no new data even if cell objects are updated. 
-  return new ComputedTable({
-    table, 
-    projectedColumns,
-    rowFilters
-  });
+  return new LockedTable(table);
 }

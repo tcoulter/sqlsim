@@ -1,4 +1,4 @@
-import compute, { BinaryExpression, Expression, ExpressionList, Literal, LiteralValue, NumberLiteral, StringLiteral, analyzeExpression } from "../compute"
+import compute, { BinaryExpression, Expression, ExpressionList, Literal, LiteralValue, NumberLiteral, StringLiteral, stringifyExpression } from "../compute"
 import { ColumnRef } from "../execute";
 import Table from "../storage/table";
 import { columnRef, expression } from "./helpers";
@@ -15,36 +15,6 @@ describe("Compute", () => {
       return compute(expr, row, table.columnIndexMap);
     });
   }
-
-  test("analyzer doesn't pull any columns on literals", () => {
-    let requiredColumns = analyzeExpression(
-      expression(5, "!=", 2)
-    );
-
-    expect(requiredColumns).toEqual([]);
-  })
-
-  test("analyzer correctly pulls single column (age)", () => {
-    let requiredColumns = analyzeExpression(
-      expression(columnRef("age"), ">", 25)
-    );
-
-    expect(requiredColumns).toEqual(["age"]);
-  })
-
-  test("analyzer correctly pulls columns from complex expression list", () => {
-    let requiredColumns = analyzeExpression(
-      {
-        type: "expr_list",
-        value: [
-          expression(columnRef("age"), ">", 30),
-          expression(columnRef("name"), "=", "Tim")
-        ]
-      } as ExpressionList
-    );
-
-    expect(requiredColumns).toEqual(["age", "name"]);
-  })
 
   test("computes simple boolean expressions with literals", () => {
     expect(run(30, ">", 21)).toBe(true);
@@ -101,5 +71,16 @@ describe("Compute", () => {
   })
 
   // TODO: Test expression lists
+
+  test("expressions stringify just fine", () => {
+    expect(stringifyExpression(expression(columnRef("age"), ">", 25))).toEqual("age>25");
+    expect(stringifyExpression(
+      expression(
+        expression(columnRef("age"), ">", 25),
+        "AND",
+        expression(columnRef("name"), "=", "Tim")
+      )
+    )).toEqual("(age>25)AND(name='Tim')");
+  })
 
 })

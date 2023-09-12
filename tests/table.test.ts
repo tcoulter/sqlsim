@@ -1,9 +1,9 @@
 import { CellData } from "../storage/cell";
 import Row from "../storage/row";
-import Table, { ComputedTable, JoinedTable } from "../storage/table";
+import Table, { FilteredTable, JoinedTable, LockedTable } from "../storage/table";
 import { columnRef, expression } from "./helpers";
 
-describe("ComputedTable", () => {
+describe("LockedTable", () => {
   test("cells return data at lock time even after updates", () => {
     let expectedData:Array<CellData> = ["Tim", 30];
     let newData:Array<CellData> = ["Timmma", 31];
@@ -14,7 +14,7 @@ describe("ComputedTable", () => {
     // We're going to do direct updates to the row rather than 
     // through any update mechanism (doesn't exist yet as of this writing).
 
-    let lockedTable = new ComputedTable({table});
+    let lockedTable = new LockedTable(table);
 
     // No update yet, so we have to get the row itself
     let rows:Array<Row> = table.getRows();
@@ -31,7 +31,7 @@ describe("ComputedTable", () => {
     let table = new Table("People", ["name", "age"]);
     table.insert(firstRow);
 
-    let lockedTable = new ComputedTable({table});
+    let lockedTable = new LockedTable(table);
 
     table.insert(secondRow);
 
@@ -52,7 +52,7 @@ describe("ComputedTable", () => {
     table.insert(firstRow);
     table.insert(secondRow);
 
-    let lockedTable = new ComputedTable({table});
+    let lockedTable = new LockedTable(table);
 
     table.getRows()[1].delete();
 
@@ -214,7 +214,7 @@ describe("JoinedTable", () => {
       on: expression(columnRef("from_id"), "=", columnRef("country_id"))
     });
 
-    let computed = new ComputedTable({
+    let computed = new FilteredTable({
       table: innerJoin
     });
 

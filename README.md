@@ -10,13 +10,15 @@ More to come!
 
 ### Keywords Supported 
 
+#### General
+
 - [x] CREATE TABLE (see below)
 - [x] INSERT INTO Table VALUES ... (all-column insert)
 - [ ] INSERT INTO Table _(col1, col2, ...)_ VALUES ... (column-specific inserts)
 - [x] SELECT * FROM Table (basic selection)
 - [x] SELECT _col1_, _col2_, ... FROM Table (column filtering via projection)
 - [x] SELECT _col3_, _col3_, _col3_ FROM Table (column expansion via projection)
-- [ ] SELECT _(col2 + 5)_ FROM Table (expressions via projection)
+- [x] SELECT _(col2 + 5)_ FROM Table (expressions via projection)
 - [x] SELECT ... FROM Table WHERE _expression_ (row filtering via expressions, see below)
 - [x] SELECT ... FROM Table JOIN AnotherTable ON _expression_ (inner joins)
 - [x] SELECT ... FROM Table LEFT JOIN AnotherTable ON _expression_ (left joins)
