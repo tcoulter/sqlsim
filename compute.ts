@@ -13,7 +13,7 @@ export type Literal = NumberLiteral | StringLiteral | NullLiteral | BooleanLiter
 // TODO: Test different expressions to see how parser responds
 export type BinaryExpression = {
   type: "binary_expr",
-  operator: "+"|"-"|"/"|"*"|"="|"!="|"<"|"<="|">"|">="|"<>"|"AND"|"OR"|"IS"|"IS NOT"|"IN"|"NOT IN",
+  operator: "+"|"-"|"/"|"*"|"="|"!="|"<"|"<="|">"|">="|"<>"|"AND"|"OR"|"IS"|"IS NOT"|"IN"|"NOT IN"|"LIKE",
   left: Expression,
   right: Expression
 }
@@ -158,6 +158,11 @@ function computeBinaryOperation(left:ComputationResult, right:ComputationResult,
       enforceBoolean(left);
       enforceBoolean(right);
       return (left as boolean) || (right as boolean);
+    case "LIKE":
+      enforceString(left); 
+      enforceString(right);
+      let regex = convertLIKEPatternToRegex(right as string);
+      return regex.test(left as string);
     case "IN":
     case "NOT IN":
       throw new Error("IN / NOT IN not yet supported");
@@ -176,4 +181,15 @@ function enforceBoolean(value:ComputationResult) {
   if (typeof value != "boolean") {
     throw new Error("Expected boolean type but got " + typeof value);
   }
+}
+
+function enforceString(value:ComputationResult) {
+  if (typeof value != "string") {
+    throw new Error("Expected string type but got " + typeof value);
+  }
+}
+
+function convertLIKEPatternToRegex(pattern:string):RegExp {
+  let regexPattern = "^" + pattern.replace(/%/g, ".*?").replace(/_/g, ".") + "$";
+  return new RegExp(regexPattern);
 }

@@ -344,6 +344,40 @@ describe("execute()", () => {
     ])
   });
 
+  test('SELECT with LIKE in WHERE clause', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People VALUES 
+        ('Mr. Tim', 30), 
+        ('Ms. Liz', 21),
+        ('Mrs. Preeti', 27),
+        ('Mr. Gary', 18);
+
+      SELECT * FROM People WHERE name LIKE 'M_.';
+      SELECT * FROM People WHERE name LIKE 'M%'; 
+      SELECT * FROM People WHERE name LIKE 'Mr.%';
+    `);
+
+    expect(results.length).toBe(5);
+
+    expect(results[2]).toEqual([]);
+    expect(results[3]).toEqual([
+      ['Mr. Tim', 30], 
+      ['Ms. Liz', 21],
+      ['Mrs. Preeti', 27],
+      ['Mr. Gary', 18]
+    ]);
+    expect(results[4]).toEqual([
+      ['Mr. Tim', 30], 
+      ['Mrs. Preeti', 27],
+      ['Mr. Gary', 18]
+    ]);
+  });
+
   test('SELECT with joins', () => {
     let {results, storage} = execute(`
       CREATE TABLE People (
@@ -401,6 +435,7 @@ describe("execute()", () => {
     ]);
   })
 
+  
 
 
   // TODO: left, right and full joins (need to study parser)

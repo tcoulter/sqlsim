@@ -68,4 +68,4 @@ More to come!
 - [ ] _IS NOT_ operator
 - [ ] _IN_ operator
 - [ ] _NOT IN_ operator
-- [ ] _LIKE_ operator
+- [x] _LIKE_ operator

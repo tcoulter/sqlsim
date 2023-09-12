@@ -56,16 +56,6 @@ export default class Table extends Committed {
 
       this.#rows.push(newRow);
     })
-
-    // (cellOrRowData as Array<Array<CellData>>).forEach((values) => {
-    //   if (values.length != this.columns.length) {
-    //     throw new Error("Unexpected number of columns inserted into table " + this.name);
-    //   }
-  
-    //   this.#rows.push(
-    //     new Row(values, commit)
-    //   );
-    // })
   }
 
   update(columns:Array<string>, values:Array<CellData|SingleExpression>, where?:BinaryExpression) {

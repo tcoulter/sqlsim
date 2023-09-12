@@ -1,5 +1,4 @@
 import compute, { BinaryExpression, Expression, ExpressionList, Literal, LiteralValue, NumberLiteral, StringLiteral, stringifyExpression } from "../compute"
-import { ColumnRef } from "../execute";
 import Table from "../storage/table";
 import { columnRef, expression } from "./helpers";
 
@@ -83,4 +82,12 @@ describe("Compute", () => {
     )).toEqual("(age>25)AND(name='Tim')");
   })
 
+  test("LIKE operator", () => {
+    expect(run('New York City', "LIKE", 'New %')).toBe(true);
+    expect(run('Oregon', "LIKE", 'New %')).toBe(false);
+    expect(run('Brand New Shoes', "LIKE", '% New %')).toBe(true);
+    expect(run('8Ball', "LIKE", '_Ball')).toBe(true);
+    expect(run('8Ball', "LIKE", '_')).toBe(false);
+    expect(run('8Ball', "LIKE", '%')).toBe(true);
+  })
 })
