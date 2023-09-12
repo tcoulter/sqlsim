@@ -24,7 +24,12 @@ More to come!
 - [x] SELECT ... FROM Table LEFT JOIN AnotherTable ON _expression_ (left joins)
 - [x] SELECT ... FROM Table RIGHT JOIN AnotherTable ON _expression_ (right joins)
 - [x] SELECT ... FROM Table FULL JOIN AnotherTable ON _expression_ (full joins)
-
+- [ ] AS for table names
+- [ ] AS for column names
+- [ ] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
+- [ ] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
+- [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
+ 
 
 #### CREATE TABLE 
 
@@ -32,7 +37,8 @@ More to come!
 - [ ] AUTO_INCREMENT constraint
 - [ ] UNIQUE constraint
 - [ ] NOT NULL constraint
-- [ ] PRIMARY KEY constraint
+- [ ] PRIMARY KEY _(col1)_ constraint (single primary key)
+- [ ] PRIMARY KEY _(col1, col2, ...)_ constraint (composite primary key)
 - [ ] FOREIGN KEY ... REFERENCES ... constraint
 - [ ] ON UPDATE constraint
 - [ ] ON DELETE constraint
