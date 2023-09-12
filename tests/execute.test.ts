@@ -89,6 +89,28 @@ describe("execute()", () => {
     expect(rows[1].cell(1).getData()).toBe(21);
   });
 
+  test('INSERT only some columns (with SELECT to make things easy)', () => {
+    let {results, storage} = execute(`
+      CREATE Table People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People (name) VALUES ('Tim'), ('Liz');
+
+      SELECT * FROM People; 
+    `);
+
+    let database = storage.databases['default'];
+    let table = database.getTable('People');
+
+    expect(results.length).toBe(3);
+    expect(results[2]).toEqual([
+      ['Tim', null],
+      ['Liz', null]
+    ])
+  })
+
   test('CREATE, INSERT and UPDATE without WHERE clause (with SELECT, teaser of tests below)', () => {
     let {results, storage} = execute(`
       CREATE TABLE People (

@@ -26,7 +26,7 @@ export default class Table extends Committed {
     })
   }
 
-  insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>) {
+  insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>, columns:Array<string> = this.columns) {
     if (cellOrRowData.length == 0) {
       throw new Error("Insert called with no data!");
     }
@@ -38,15 +38,34 @@ export default class Table extends Committed {
       cellOrRowData = [cellOrRowData as Array<CellData>];
     }
 
-    (cellOrRowData as Array<Array<CellData>>).forEach((values) => {
-      if (values.length != this.columns.length) {
-        throw new Error("Unexpected number of columns inserted into table " + this.name);
+    (cellOrRowData as Array<Array<CellData>>).forEach((rowData:Array<CellData>) => {
+      if (rowData.length != columns.length) {
+        throw new Error("Not enough data passed to insert() for given columns")
       }
-  
-      this.#rows.push(
-        new Row(values, commit)
-      );
+    
+      // Create new row filled with nulls
+      let newRow = new Row(new Array(this.columns.length).fill(null), commit);
+
+      columns.forEach((column, index) => {
+        // Get the value based on its position passed
+        let newValue = rowData[index];
+
+        // Now use the columnIndexMap to update the columns in the row
+        newRow.cell(this.columnIndexMap[column] as number).put(newValue, commit);
+      });
+
+      this.#rows.push(newRow);
     })
+
+    // (cellOrRowData as Array<Array<CellData>>).forEach((values) => {
+    //   if (values.length != this.columns.length) {
+    //     throw new Error("Unexpected number of columns inserted into table " + this.name);
+    //   }
+  
+    //   this.#rows.push(
+    //     new Row(values, commit)
+    //   );
+    // })
   }
 
   update(columns:Array<string>, values:Array<CellData|SingleExpression>, where?:BinaryExpression) {

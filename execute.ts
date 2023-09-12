@@ -183,23 +183,18 @@ function createTable(ast:CreateTable, storage:Storage):Commit {
 function insert(ast:Insert, storage:Storage):Commit {
   let table = getTable(ast.table[0], storage);
 
-  if (ast.columns == null) {
-    ast.values.forEach((item) => {
-      // We can insert via an array without named columns. 
-      let data:Array<CellData> = [];
+  ast.values.forEach((item) => {
+    // We can insert via an array without named columns. 
+    let data:Array<CellData> = [];
 
-      // TODO: This assumes raw data is in the insert values. 
-      // TODO: Support expressions. 
-      item.value.forEach((cellData) => {
-        data.push(cellData.value);
-      })
-      
-      table.insert(data);
-    });
-  } else {
-    // TODO: Insert differently. 
-    throw new Error("INSERTing only some columns not implemented yet")
-  }
+    // TODO: This assumes raw data is in the insert values. 
+    // TODO: Support expressions. 
+    item.value.forEach((cellData) => {
+      data.push(cellData.value);
+    })
+    
+    table.insert(data, ast.columns != null ? ast.columns : undefined);
+  });
 
   return getLatestCommit();
 };

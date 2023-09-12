@@ -14,7 +14,7 @@ More to come!
 
 - [x] CREATE TABLE (see below)
 - [x] INSERT INTO Table VALUES ... (all-column insert)
-- [ ] INSERT INTO Table _(col1, col2, ...)_ VALUES ... (column-specific inserts)
+- [x] INSERT INTO Table _(col1, col2, ...)_ VALUES ... (column-specific inserts)
 - [x] UPDATE Table SET _col1 = ...; (update all records)
 - [x] UPDATE Table SET _col1 = ..., col2 = ... WHERE ... (single and multi column updates with filtering)
 - [x] SELECT * FROM Table (basic selection)
