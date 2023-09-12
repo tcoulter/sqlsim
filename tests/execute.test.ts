@@ -230,7 +230,7 @@ describe("execute()", () => {
     ])
   });
 
-  test('SELECT with an inner join', () => {
+  test('SELECT with joins', () => {
     let {results, storage} = execute(`
       CREATE TABLE People (
         name VARCHAR(20),
@@ -247,14 +247,43 @@ describe("execute()", () => {
       INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada'), (3, 'Mexico');
     
       SELECT * FROM People JOIN Countries ON from_id = country_id;
+      SELECT * FROM People LEFT JOIN Countries ON from_id = country_id;
+      SELECT * FROM People RIGHT JOIN Countries ON from_id = country_id;
+      SELECT * FROM People FULL JOIN Countries ON from_id = country_id;
     `);
 
-    expect(results.length).toBe(5);
+    expect(results.length).toBe(8);
     expect(Array.isArray(results[4])).toBe(true);
+    expect(Array.isArray(results[5])).toBe(true);
+    expect(Array.isArray(results[6])).toBe(true);
+    expect(Array.isArray(results[7])).toBe(true);
 
+    // Inner
     expect(results[4]).toEqual([
       ['Tim', 30, 1, 1, 'USA'],
       ['Liz', 21, 2, 2, 'Canada']
+    ]);
+
+    // Left
+    expect(results[5]).toEqual([
+      ['Tim', 30, 1, 1, 'USA'],
+      ['Liz', 21, 2, 2, 'Canada'],
+      ['Russ', 47, null, null, null]
+    ]);
+
+    // Right
+    expect(results[6]).toEqual([
+      ['Tim', 30, 1, 1, 'USA'],
+      ['Liz', 21, 2, 2, 'Canada'],
+      [null, null, null, 3, "Mexico"]
+    ]);
+
+    // Full
+    expect(results[7]).toEqual([
+      ['Tim', 30, 1, 1, 'USA'],
+      ['Liz', 21, 2, 2, 'Canada'],
+      ['Russ', 47, null, null, null],
+      [null, null, null, 3, "Mexico"]
     ]);
   })
 
