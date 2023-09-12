@@ -67,6 +67,23 @@ describe("LockedTable", () => {
 })
 
 describe("Table", () => {
+
+  test("rows inserted at the same time all have the same commit", () => {
+    let firstRowData:Array<CellData> = ["Tim", 30];
+    let secondRowData:Array<CellData> = ["Timmma", 31];
+
+    let table = new Table("People", ["name", "age"]);
+    table.insert([
+      firstRowData,
+      secondRowData
+    ]);
+
+    let rows = table.getRows();
+
+    expect(rows.length).toBe(2);
+    expect(rows[0].createdAt).toEqual(rows[1].createdAt);
+  })
+
   test("can filter columns via projection", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];

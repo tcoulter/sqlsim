@@ -1,6 +1,6 @@
 import compute, { BinaryExpression } from "../compute";
 import { CellData } from "./cell";
-import { Commit, Committed, getLatestCommit } from "./commit";
+import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
 
 export type ColumnIndexMap = Record<string, number|BinaryExpression>;
@@ -25,6 +25,12 @@ export default class Table extends Committed {
   }
 
   insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>) {
+    if (cellOrRowData.length == 0) {
+      throw new Error("Insert called with no data!");
+    }
+
+    let commit = newCommit();
+
     // Single row? 
     if (!Array.isArray(cellOrRowData[0])) {
       cellOrRowData = [cellOrRowData as Array<CellData>];
@@ -36,7 +42,7 @@ export default class Table extends Committed {
       }
   
       this.#rows.push(
-        new Row(values)
+        new Row(values, commit)
       );
     })
   }
