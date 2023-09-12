@@ -2,7 +2,7 @@
 
 SQL Simulator in Javascript. Performance and storage space be damned! This is an in-memory simulator meant to show how SQL works, allowing inspection of database state at any (and every!) time during execution. 
 
-### Support SQL Flavors 
+### Supported SQL Flavors 
 
 - [x] MySQL
 
