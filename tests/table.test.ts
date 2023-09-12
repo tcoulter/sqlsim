@@ -1,4 +1,4 @@
-import { CellData } from "../storage/cell";
+import Cell, { CellData } from "../storage/cell";
 import Row from "../storage/row";
 import Table, { FilteredTable, JoinedTable, LockedTable } from "../storage/table";
 import { columnRef, expression } from "./helpers";
@@ -82,6 +82,73 @@ describe("Table", () => {
 
     expect(rows.length).toBe(2);
     expect(rows[0].createdAt).toEqual(rows[1].createdAt);
+  })
+
+  test("can update values with literals", () => {
+    let initialData:Array<Array<CellData>> = [
+      ["Tim", 30],
+      ["Liz", 21],
+      ["Gary", 49],
+      ["Preeti", 25]
+    ]
+
+    let table = new Table("People", ["name", "age"]);
+    table.insert(initialData);
+
+    table.update(['age'], [100], expression(columnRef('age'), ">=", 25));
+
+    expect(table.getData()).toEqual([
+      ["Tim", 100],
+      ["Liz", 21],
+      ["Gary", 100],
+      ["Preeti", 100]
+    ])
+  })
+
+  test("can update values with expressions", () => {
+    let initialData:Array<Array<CellData>> = [
+      ["Tim", 30],
+      ["Liz", 21],
+      ["Gary", 49],
+      ["Preeti", 25]
+    ]
+
+    let table = new Table("People", ["name", "age"]);
+    table.insert(initialData);
+
+    table.update(['age'], [expression(columnRef('age'), "+", 5)], expression(columnRef('age'), ">=", 25));
+
+    expect(table.getData()).toEqual([
+      ["Tim", 35],
+      ["Liz", 21],
+      ["Gary", 54],
+      ["Preeti", 30]
+    ])
+  })
+
+  test("can update multiple values, out of order, with/without expressions", () => {
+    let initialData:Array<Array<CellData>> = [
+      ["Tim", 30],
+      ["Liz", 21],
+      ["Gary", 49],
+      ["Preeti", 25]
+    ]
+
+    let table = new Table("People", ["name", "age"]);
+    table.insert(initialData);
+
+    // Notice separate order of age and name
+    table.update(['age', 'name'], [
+      expression(columnRef('age'), "+", 5),
+      'Default Human'
+    ], expression(columnRef('age'), ">=", 25));
+
+    expect(table.getData()).toEqual([
+      ["Default Human", 35],
+      ["Liz", 21],
+      ["Default Human", 54],
+      ["Default Human", 30]
+    ])
   })
 
   test("can filter columns via projection", () => {

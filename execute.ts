@@ -4,13 +4,17 @@ import {
   Create as ASTCreate, 
   Insert_Replace as ASTInsert, 
   Select as ASTSelect,
-  Column as ASTColumn
+  Update as ASTUpdate,
+  SetList as ASTSetList
 } from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
 import Table, { FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
-import compute, { BinaryExpression, stringifyExpression } from "./compute";
+import compute, { BinaryExpression, Expression, Literal, SingleExpression, stringifyExpression } from "./compute";
+import {debug} from "debug";
+
+const debugAst = debug('ast');
 
 type TableSpecifier = {
   db: string,
@@ -64,6 +68,19 @@ interface Select extends ASTSelect {
   where: BinaryExpression | null,
 }
 
+interface Update extends ASTUpdate {
+  type: "update", 
+  table: TableSpecifier[], // Make table required - I'm not sure why it's returned as an array,
+  where: BinaryExpression | null,
+  set: Array<SetItem>
+}
+
+interface SetItem extends ASTSetList {
+  column: string;
+  value: SingleExpression;
+  table: string | null;
+}
+
 export default function execute(sql:string, storage?:Storage) {
   if (typeof storage == "undefined") {
     storage = new Storage();
@@ -77,7 +94,7 @@ export default function execute(sql:string, storage?:Storage) {
     ast = [ast] as Array<AST>;
   }
 
-  //console.log(JSON.stringify(ast, null, 2));
+  debugAst(JSON.stringify(ast, null, 2));
 
   let results = executeFromAST(ast as AST[], storage);
 
@@ -107,6 +124,9 @@ export function executeFromAST(ast:AST[], storage:Storage):Array<Commit|Table> {
         break;
       case "insert": 
         result = insert(line as Insert, storage);
+        break;
+      case "update": 
+        result = update(line as Update, storage);
         break;
       case "select": 
         result = select(line as Select, storage);
@@ -184,6 +204,36 @@ function insert(ast:Insert, storage:Storage):Commit {
   return getLatestCommit();
 };
 
+function update(ast:Update, storage:Storage):Commit {
+  let table = getTable(ast.table[0], storage);
+
+  let columns:Array<string> = []
+  let values:Array<CellData|SingleExpression> = [];
+
+  ast.set.forEach((item) => {
+    columns.push(item.column);
+
+    switch(item.value.type) {
+      case "binary_expr":
+      case "column_ref": 
+        values.push(item.value);
+        break;
+      case "bool":
+      case "null":
+      case "number":
+      case "single_quote_string":
+        values.push((item.value as Literal).value);
+        break;
+      default:
+        throw new Error("Unexpected type on right hand side of SET: " + (item.value as any).type)
+    }
+  });
+
+  table.update(columns, values, ast.where != null ? ast.where : undefined);
+
+  return getLatestCommit();
+}
+
 function select(ast:Select, storage:Storage):Table {
   let database = getDatabase(ast.from[0].db, storage);
   
@@ -205,17 +255,9 @@ function select(ast:Select, storage:Storage):Table {
   }
 
   if (ast.where != null) {
-    let rowFilters:Array<RowFilter> = [];
-    rowFilters.push((filtredTable, filteredRow) => {
-      // TODO(?): Notice the !!. For now, lets not worry about a computation result
-      // in the WHERE clause returning something other than a boolean. 
-      // Let's assume that the parser takes care of that for us. 
-      return !!compute(ast.where as BinaryExpression, filteredRow, filtredTable.columnIndexMap, filtredTable.lockedAt);
-    })
-
     table = new FilteredTable({
       table,
-      rowFilters
+      rowFilters: [createWhereFilter(ast.where)]
     })
   }
 
@@ -260,4 +302,13 @@ function select(ast:Select, storage:Storage):Table {
   // Return a locked version of the table so this intsance will return 
   // no new data even if cell objects are updated. 
   return new LockedTable(table);
+}
+
+export function createWhereFilter(expr:BinaryExpression):RowFilter {
+  return (filtredTable, filteredRow) => {
+    // TODO(?): Notice the !!. For now, lets not worry about a computation result
+    // in the WHERE clause returning something other than a boolean. 
+    // Let's assume that the parser takes care of that for us. 
+    return !!compute(expr, filteredRow, filtredTable.columnIndexMap, filtredTable.lockedAt);
+  }
 }

@@ -15,6 +15,8 @@ More to come!
 - [x] CREATE TABLE (see below)
 - [x] INSERT INTO Table VALUES ... (all-column insert)
 - [ ] INSERT INTO Table _(col1, col2, ...)_ VALUES ... (column-specific inserts)
+- [ ] UPDATE Table SET _col1 = ...; (update all records)
+- [ ] UPDATE Table SET _col1 = ..., col2 = ... WHERE ... (single and multi column updates with filtering)
 - [x] SELECT * FROM Table (basic selection)
 - [x] SELECT _col1_, _col2_, ... FROM Table (column filtering via projection)
 - [x] SELECT _col3_, _col3_, _col3_ FROM Table (column expansion via projection)
@@ -29,6 +31,8 @@ More to come!
 - [ ] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
 - [ ] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
+- [ ] SELECT ... FROM ... ORDER BY _col1, col2, ..._ (single and multi-column row ordering)
+- [ ] SELECT ... FROM ... GROUP BY ... HAVING (aggregation) 
  
 
 #### CREATE TABLE 

@@ -17,9 +17,8 @@ let results = execute(`
   );
 
   INSERT INTO People VALUES ('Tim', 20, 1), ('Liz', 21, 2);
-  INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada');
-
-  SELECT * FROM People JOIN Countries ON from_id = country_id;
+  
+  UPDATE People SET name = age WHERE name = 'Tim';
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));

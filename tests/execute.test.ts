@@ -89,6 +89,52 @@ describe("execute()", () => {
     expect(rows[1].cell(1).getData()).toBe(21);
   });
 
+  test('CREATE, INSERT and UPDATE without WHERE clause (with SELECT, teaser of tests below)', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Justin', 17), ('Gary', 49);
+
+      UPDATE People SET name = 'Old Person';
+
+      SELECT * FROM People;
+    `);
+    
+    expect(results.length).toBe(4);
+    expect(results[3]).toEqual([
+      ['Old Person', 30],
+      ['Old Person', 21],
+      ['Old Person', 17],
+      ['Old Person', 49]
+    ]);
+  })
+
+  test('CREATE, INSERT and UPDATE multiple columns with expressions (with SELECT, teaser of tests below)', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INT
+      );
+
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Justin', 17), ('Gary', 49);
+
+      UPDATE People SET name = 'Old Person', age = 100 + age WHERE age >= 30;
+
+      SELECT * FROM People;
+    `);
+    
+    expect(results.length).toBe(4);
+    expect(results[3]).toEqual([
+      ['Old Person', 130],
+      ['Liz', 21],
+      ['Justin', 17],
+      ['Old Person', 149]
+    ]);
+  })
+
   test('simple SELECT', () => {
     let {results, storage} = execute(`
       CREATE TABLE l (

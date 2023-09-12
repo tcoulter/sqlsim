@@ -7,6 +7,7 @@ import Table, { ColumnIndexMap } from "./storage/table";
 // Damn parser doesn't give us an Expression type
 
 export type Expression = ColumnRef | Literal | BinaryExpression | ExpressionList;
+export type SingleExpression = ColumnRef | Literal | BinaryExpression;
 export type Literal = NumberLiteral | StringLiteral | NullLiteral | BooleanLiteral;
 
 // TODO: Test different expressions to see how parser responds

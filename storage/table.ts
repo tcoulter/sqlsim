@@ -1,4 +1,5 @@
-import compute, { BinaryExpression } from "../compute";
+import compute, { BinaryExpression, SingleExpression } from "../compute";
+import { createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
@@ -19,6 +20,7 @@ export default class Table extends Committed {
     this.columns = columns;
     this.sourceDataCellCount = columns.length;
 
+    // Note that all base tables have only indeces within their columnIndexMap. 
     this.columns.forEach((columnName, index) => {
       this.columnIndexMap[columnName] = index;
     })
@@ -44,6 +46,43 @@ export default class Table extends Committed {
       this.#rows.push(
         new Row(values, commit)
       );
+    })
+  }
+
+  update(columns:Array<string>, values:Array<CellData|SingleExpression>, where?:BinaryExpression) {
+    let table:Table = this;
+
+    if (columns.length != values.length) {
+      throw new Error("Number of values given to update() must match number of columns specified.");
+    }
+
+    if (typeof where != "undefined") {
+      table = new FilteredTable({
+        table,
+        rowFilters: [createWhereFilter(where)]
+      })
+    }
+
+    let rows = table.getRows();
+
+    // TODO: There can be some efficiencies gained when UPDATE values don't have expressions
+    // in them (e.g., no need to run the inner loop on every row). But we don't care for now. 
+    rows.forEach((row) => {
+      columns.forEach((column, index) => {
+        let value = values[index];
+
+        // We need to discern between cell data and binary expression. 
+        // A binary expression is an object. So is null... 
+        if (value != null && typeof value == "object") {
+          value = compute(value as BinaryExpression, row, this.columnIndexMap)
+        }
+
+        // Get the index of the column to update
+        let cellIndex = this.columnIndexMap[column] as number;
+
+        // Update the value! 
+        row.cell(cellIndex).put(value as CellData);
+      });
     })
   }
 
