@@ -435,7 +435,55 @@ describe("execute()", () => {
     ]);
   })
 
-  
+  test('simple aggregates', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 48), ('Null Guy', null);
+    
+      SELECT AVG(age) FROM People;
+      SELECT MAX(age) FROM People;
+      SELECT MIN(age) FROM People; 
+      SELECT SUM(age) FROM People;
+
+      SELECT COUNT(age) FROM People;
+    `);
+
+    expect(results.length).toBe(7);
+    expect(Array.isArray(results[2])).toBe(true);
+    expect(Array.isArray(results[3])).toBe(true);
+    expect(Array.isArray(results[4])).toBe(true);
+    expect(Array.isArray(results[5])).toBe(true);
+    expect(Array.isArray(results[6])).toBe(true);
+
+    expect(results[2]).toEqual([[33]]);
+    expect(results[3]).toEqual([[48]]);
+    expect(results[4]).toEqual([[21]]);
+    expect(results[5]).toEqual([[99]]);
+
+    expect(results[6]).toEqual([[3]]);
+  });
+
+  test('simple aggregate with WHERE clause', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 48);
+    
+      SELECT AVG(age) FROM People WHERE age > 25
+    `);
+
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([[39]]);
+  });
 
 
   // TODO: left, right and full joins (need to study parser)

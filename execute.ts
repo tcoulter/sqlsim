@@ -10,8 +10,8 @@ import {
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
-import compute, { BinaryExpression, Expression, Literal, SingleExpression, stringifyExpression } from "./compute";
+import Table, { AggregateTable, FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
+import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, stringifyExpression } from "./compute";
 import {debug} from "debug";
 
 const debugAst = debug('ast');
@@ -25,7 +25,7 @@ type TableSpecifier = {
 };
 
 type ColumnSpecifier = {
-  expr: ColumnRef | BinaryExpression,
+  expr: ColumnRef | BinaryExpression | AggregateExpression,
   as: string | null
 }
 
@@ -231,7 +231,6 @@ function update(ast:Update, storage:Storage):Commit {
 
 function select(ast:Select, storage:Storage):Table {
   let database = getDatabase(ast.from[0].db, storage);
-  
 
   // Process source tables (e.g., joins) before doing anything
   let table = database.getTable(ast.from[0].table);
@@ -256,42 +255,61 @@ function select(ast:Select, storage:Storage):Table {
     })
   }
 
-  // Do projection. 
+  
+
+  // Do projection OR aggregation.
   // Note that we're checking for the case where ast.columns is *. 
   // This looks like it won't ever happen, but it's an allowed possibility
   // by the type provided by the parser. Note that we'll instead get * as a 
   // column_ref that the below code expands out. 
   if (ast.columns != "*") {
-    let projectedColumns:Array<string> = [];
-    let computedColumns:Record<string, BinaryExpression> = {};
+    // Check for aggregation
+    let includesAggregation = false; 
 
-    ast.columns.forEach((column) => {
-      let columnName = "";
-      switch(column.expr.type) {
-        case "column_ref":
-          columnName = column.expr.column;
-
-          if (columnName == "*") {
-            (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
-          } else {
-            (projectedColumns as Array<string>).push(columnName);
-          }
-          break;
-        case "binary_expr": 
-          columnName = stringifyExpression(column.expr);
-          (projectedColumns as Array<string>).push(columnName);
-          computedColumns[columnName] = column.expr;
-          break;
-        default: 
-          throw new Error("Unsupported column type in projection: " + (column.expr as any).type);
+    for (var i = 0; i < ast.columns.length; i++) {
+      if (ast.columns[i].expr.type == "aggr_func") {
+        includesAggregation = true;
+        break;
       }
-    });
+    }
 
-    table = new ProjectedTable({
-      table,
-      columns: projectedColumns,
-      computedColumns
-    })
+    if (includesAggregation == true) {
+      // Aggregation
+      // TODO: Binary expressions with aggregate functions inside! 
+      table = new AggregateTable(ast.columns.map((spec) => spec.expr as ColumnRef|AggregateExpression), table);
+    } else {
+      // Projection 
+      let projectedColumns:Array<string> = [];
+      let computedColumns:Record<string, BinaryExpression> = {};
+
+      ast.columns.forEach((column) => {
+        let columnName = "";
+        switch(column.expr.type) {
+          case "column_ref":
+            columnName = column.expr.column;
+
+            if (columnName == "*") {
+              (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
+            } else {
+              (projectedColumns as Array<string>).push(columnName);
+            }
+            break;
+          case "binary_expr": 
+            columnName = stringifyExpression(column.expr);
+            (projectedColumns as Array<string>).push(columnName);
+            computedColumns[columnName] = column.expr;
+            break;
+          default: 
+            throw new Error("Unsupported column type in projection: " + (column.expr as any).type);
+        }
+      });
+
+      table = new ProjectedTable({
+        table,
+        columns: projectedColumns,
+        computedColumns
+      })
+    }
   }
 
   // Return a locked version of the table so this intsance will return 

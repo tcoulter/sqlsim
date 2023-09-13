@@ -105,9 +105,12 @@ describe("Compute", () => {
       ["Liz", 21]
     ]);
 
-    expect(runAggregate("AVG", columnRef("age"), table)).toEqual(25.5);
-    expect(runAggregate("SUM", columnRef("age"), table)).toEqual(51);
-    expect(runAggregate("MIN", columnRef("age"), table)).toEqual(21);
-    expect(runAggregate("MAX", columnRef("age"), table)).toEqual(30);
+    expect(runAggregate("AVG", columnRef("age"), table)).toEqual([25.5]);
+    expect(runAggregate("SUM", columnRef("age"), table)).toEqual([51]);
+    expect(runAggregate("MIN", columnRef("age"), table)).toEqual([21]);
+    expect(runAggregate("MAX", columnRef("age"), table)).toEqual([30]);
+
+    // Usually COUNT(*) is used... we don't support the * yet
+    expect(runAggregate("COUNT", columnRef("age"), table)).toEqual([2]);
   })
 })

@@ -1,5 +1,5 @@
-import compute, { BinaryExpression, SingleExpression } from "../compute";
-import { createWhereFilter } from "../execute";
+import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates } from "../compute";
+import { ColumnRef, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
@@ -285,12 +285,7 @@ export class JoinedTable extends Table {
     // Write a columnIndexMap that accounts for both rows
     // Note that the indexes refer to the index value as if
     // the cell data were one big array. 
-    let newColumnIndexMap:ColumnIndexMap = {};
-
-    // Keep the left columns
-    Object.keys(left.columnIndexMap).forEach((leftColumnName) => {
-      newColumnIndexMap[leftColumnName] = left.columnIndexMap[leftColumnName];
-    })
+    let newColumnIndexMap:ColumnIndexMap = Object.assign({}, left.columnIndexMap);
 
     // Now add in the right columns, adjusting index to account for left values
     Object.entries(right.columnIndexMap).forEach(([rightColumn, rightColumnIndex]) => {
@@ -367,11 +362,53 @@ export class JoinedTable extends Table {
   }
 }
 
-export type AggregateTableOptions = {
-  table: Table,
-  projectedColumns: Array<string>
-}
-
 export class AggregateTable extends Table {
+  #columns:Array<ColumnRef|AggregateExpression>;
+  #aggregatorExpressions:Record<string, AggregateExpression>;
+  baseTable:Table;
+
+  constructor(columns:Array<ColumnRef|AggregateExpression>, table:Table) {
+    let columnNames = columns.map((column) => {
+      if (column.type == "column_ref") {
+        return column.column;
+      } else {
+        return computeAggregateName(column);
+      }
+    });
+
+    super(table.name, columnNames, table.createdAt);
+
+    this.baseTable = table;
+    this.#columns = columns;
+
+    // Write a column index map that maps to the rows we will create
+    this.columnIndexMap = {};
+
+    columnNames.forEach((name, index) => {
+      this.columnIndexMap[name] = index;
+    })
+
+    // Update our cell count we project to others
+    this.sourceDataCellCount = this.columns.length;
   
+    // Save our aggregation expressions in a name -> expr record
+    this.#aggregatorExpressions = {};
+
+    columns.forEach((column) => {
+      if (column.type == "aggr_func") {
+        this.#aggregatorExpressions[computeAggregateName(column)] = column;
+      }
+    });
+  }
+
+  getRows(commit?:Commit):Array<Row> {
+    return computeAggregates(
+      this.#columns,
+      this.baseTable.getRows(commit),
+      this.baseTable.columnIndexMap,
+      commit
+    ).map((rowData) => {
+      return new Row(rowData);
+    })
+  }
 }

@@ -245,7 +245,7 @@ type AggregatorDefinition = {
   next:AggregatorNextFn,
   result:AggregatorResultFn
 };
-export type AvailableAggregations = "AVG" | "SUM" | "MIN" | "MAX";
+export type AvailableAggregations = "AVG" | "SUM" | "MIN" | "MAX" | "COUNT";
 type AggregatorDefinitionList = Record<AvailableAggregations, AggregatorDefinition>;
 
 // TODO: Enforce type checking somewhere so we don't end up with strings
@@ -307,7 +307,18 @@ export const aggregatorDefinitions:AggregatorDefinitionList = {
       // Spec says to return null if no maximum is found
       return booleans.foundMax ? numbers.max : null;
     }
-  }
+  },
+  "COUNT": {
+    start: ({numbers}) => {
+      numbers.count = 0;
+    },
+    next: (value, {numbers}) => {
+      numbers.count += 1;
+    }, 
+    result: ({numbers}) => {
+      return numbers.count;
+    }
+  },
 };
 
 // Apparently the type we get from the AST doesn't match the JSON data
@@ -320,14 +331,35 @@ export type AggregateExpression = Omit<ASTAggrFunc, 'args'> & {
   over: null
 }
 
-export function computeAggregates(aggregateFunctions:Array<AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<CellData> {
-  let aggregators = aggregateFunctions.map((aggrFunc) => {
-    let column = aggrFunc.args.expr.column;
-    return new Aggregator(aggrFunc.name + "(" + column + ")", aggregatorDefinitions[aggrFunc.name]);
-  })
+export function computeAggregateName(expr:AggregateExpression):string {
+  return expr.name + "(" + expr.args.expr.column + ")";
+}
+
+// TODO: Group by non-aggregate functions passed (all column refs)
+export function computeAggregates(columns:Array<ColumnRef|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Array<CellData>> {
+  // This maps directly to columns, replacing Aggregate expressions with aggregators
+  let columnsWithAggregators:Array<ColumnRef|Aggregator> = [];
+
+  // These two are meant to have the same length, indexes mapping to related data
+  let aggregateExpressions:Array<AggregateExpression> = [];
+  let aggregators:Array<Aggregator> = [];
+
+  columns.forEach((column) => {
+    if (column.type == "aggr_func") {
+      let name = computeAggregateName(column);
+      let aggregator = new Aggregator(name, aggregatorDefinitions[column.name as AvailableAggregations]);
+
+      aggregators.push(aggregator);
+      aggregateExpressions.push(column);
+
+      columnsWithAggregators.push(aggregator);
+    } else {
+      columnsWithAggregators.push(column);
+    }
+  });
 
   rows.forEach((row) => {
-    aggregateFunctions.forEach((aggrFunc, funcIndex) => {
+    aggregateExpressions.forEach((aggrFunc, funcIndex) => {
       let column = aggrFunc.args.expr.column;
       let dataIndex = columnIndexMap[column]; 
 
@@ -342,7 +374,14 @@ export function computeAggregates(aggregateFunctions:Array<AggregateExpression>,
     })
   });
 
-  return aggregators.map((aggregator) => {
-    return aggregator.result();
-  })
+  // TODO: Null out any non-aggregate columns for now. 
+  return [
+    columnsWithAggregators.map((column) => {
+      if (column instanceof Aggregator) {
+        return column.result();
+      } else {
+        return null;
+      }
+    })
+  ];
 }

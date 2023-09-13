@@ -32,7 +32,9 @@ More to come!
 - [ ] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
 - [ ] SELECT ... FROM ... ORDER BY _col1, col2, ..._ (single and multi-column row ordering)
-- [ ] SELECT ... FROM ... GROUP BY ... HAVING (aggregation) 
+- [x] SELECT _FUNC(col1)_ FROM Table (simple aggregation)
+- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY (simple aggregation with grouping)
+- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY ... HAVING ... (aggregation with grouping and filtering) 
  
 
 #### CREATE TABLE 
@@ -69,3 +71,30 @@ More to come!
 - [ ] _IN_ operator
 - [ ] _NOT IN_ operator
 - [x] _LIKE_ operator
+
+#### Aggregation Functions 
+
+- [x] AVG()
+- [ ] AVG(DISTINCT)
+- [ ] BIT_AND()
+- [ ] BIT_OR() 
+- [ ] BIT_XOR()
+- [x] COUNT()
+- [ ] COUNT(DISTINCT)
+- [ ] GROUP_CONCAT()
+- [ ] GROUP_CONCAT(DISTINCT)
+- [ ] JSON_ARRAYAGG() 
+- [ ] JSON_OBJECTAGG()
+- [x] MAX()
+- [ ] MAX(DISTINCT)
+- [x] MIN()
+- [ ] MIN(DISTINCT)
+- [ ] STD()
+- [ ] STDDEV()
+- [ ] STDDEV_POP()
+- [ ] STDDEV_SAMP()
+- [x] SUM()
+- [ ] SUM(DISTINCT)
+- [ ] VAR_POP()
+- [ ] VAR_SAMP()
+- [ ] VARIANCE()
