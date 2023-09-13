@@ -1,8 +1,9 @@
+import { AggrFunc as ASTAggrFunc } from "node-sql-parser";
 import { ColumnRef } from "./execute";
 import { CellData } from "./storage/cell";
 import { Commit } from "./storage/commit";
-import Row, { JoinedRow } from "./storage/row";
-import Table, { ColumnIndexMap } from "./storage/table";
+import Row from "./storage/row";
+import { ColumnIndexMap } from "./storage/table";
 
 // Damn parser doesn't give us an Expression type
 
@@ -192,4 +193,156 @@ function enforceString(value:ComputationResult) {
 function convertLIKEPatternToRegex(pattern:string):RegExp {
   let regexPattern = "^" + pattern.replace(/%/g, ".*?").replace(/_/g, ".") + "$";
   return new RegExp(regexPattern);
+}
+
+// This exists literally because I don't want to keep telling typescript
+// the type of certain data that's stored. So let's put often-used types
+// in buckets. 
+type AggregatorData = {
+  numbers:Record<string, number>,
+  strings:Record<string, string>,
+  booleans:Record<string, boolean>
+}
+
+type AggregatorStartFn = (data:AggregatorData) => void;
+type AggregatorNextFn = (value:CellData, data:AggregatorData) => void;
+type AggregatorResultFn = (data:AggregatorData) => CellData;
+
+class Aggregator {
+  name:string;
+  data:AggregatorData;
+  #next:AggregatorNextFn;
+  #result:AggregatorResultFn;
+  allowsNull:boolean;
+
+  constructor(name:string, {start, next, result}:AggregatorDefinition, allowsNull = false) {
+    this.name = name;
+    this.#next = next;
+    this.#result = result;
+    this.allowsNull = allowsNull;
+
+    this.data = {numbers: {}, strings: {}, booleans: {}};
+
+    start(this.data);
+  }
+
+  next(value:CellData) {
+    // Ignore null values
+    if (!this.allowsNull && value == null) {
+      return;
+    }
+
+    this.#next(value, this.data);
+  }
+
+  result():CellData {
+    return this.#result(this.data);
+  }
+}
+
+type AggregatorDefinition = {
+  start:AggregatorStartFn,
+  next:AggregatorNextFn,
+  result:AggregatorResultFn
+};
+export type AvailableAggregations = "AVG" | "SUM" | "MIN" | "MAX";
+type AggregatorDefinitionList = Record<AvailableAggregations, AggregatorDefinition>;
+
+// TODO: Enforce type checking somewhere so we don't end up with strings
+// being passed to AVG, etc.
+export const aggregatorDefinitions:AggregatorDefinitionList = {
+  "AVG": {
+    start: ({numbers}) => {
+      numbers.sum = 0;
+      numbers.count = 0;
+    },
+    next: (value, {numbers}) => {
+      numbers.sum   = numbers.sum + (value as number);
+      numbers.count = numbers.count + 1;
+    }, 
+    result: ({numbers}) => {
+      // See spec: AVG returns null on no rows
+      return numbers.count == 0 ? null : numbers.sum / numbers.count 
+    }
+  },
+  "SUM": {
+    start: ({numbers}) => {
+      numbers.sum = 0;
+    },
+    next: (value, {numbers}) => {
+      numbers.sum   = numbers.sum + (value as number);
+    }, 
+    result: ({numbers}) => {
+      return numbers.sum;
+    }
+  },
+  "MIN": {
+    start: ({numbers, booleans}) => {
+      booleans.foundMin = false;
+      numbers.min = Number.MAX_SAFE_INTEGER;
+    },
+    next: (value, {numbers, booleans}) => {
+      if ((value as number) < numbers.min) {
+        numbers.min = value as number;
+        booleans.foundMin = true;
+      }
+    }, 
+    result: ({numbers, booleans}) => {
+      // Spec says to return null if no minimum is found
+      return booleans.foundMin ? numbers.min : null;
+    }
+  },
+  "MAX": {
+    start: ({numbers, booleans}) => {
+      booleans.foundMax = false;
+      numbers.max = Number.MIN_SAFE_INTEGER;
+    },
+    next: (value, {numbers, booleans}) => {
+      if ((value as number) > numbers.max) {
+        numbers.max = value as number;
+        booleans.foundMax = true;
+      }
+    }, 
+    result: ({numbers, booleans}) => {
+      // Spec says to return null if no maximum is found
+      return booleans.foundMax ? numbers.max : null;
+    }
+  }
+};
+
+// Apparently the type we get from the AST doesn't match the JSON data
+// e.g., Where does the expr come from???
+export type AggregateExpression = Omit<ASTAggrFunc, 'args'> & {
+  type: "aggr_func",
+  args: {
+    expr: ColumnRef // TODO: Support full expressions, *, and inner functions
+  },
+  over: null
+}
+
+export function computeAggregates(aggregateFunctions:Array<AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<CellData> {
+  let aggregators = aggregateFunctions.map((aggrFunc) => {
+    let column = aggrFunc.args.expr.column;
+    return new Aggregator(aggrFunc.name + "(" + column + ")", aggregatorDefinitions[aggrFunc.name]);
+  })
+
+  rows.forEach((row) => {
+    aggregateFunctions.forEach((aggrFunc, funcIndex) => {
+      let column = aggrFunc.args.expr.column;
+      let dataIndex = columnIndexMap[column]; 
+
+      // TODO: Do we need this error? Could it actually be fine? Should we just
+      // run the expression first? 
+      if (typeof dataIndex != "number") {
+        throw new Error("Unexpected expression source for column " + column + " during aggregation");
+      }
+
+      // Throw the next value through the aggregator
+      aggregators[funcIndex].next(row.cell(dataIndex as number).getData(commit))
+    })
+  });
+
+  return aggregators.map((aggregator) => {
+    return aggregator.result();
+  })
 }

@@ -1,4 +1,4 @@
-import { BinaryExpression, Expression, Literal, LiteralValue} from "../compute"
+import { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, Literal, LiteralValue} from "../compute"
 import { ColumnRef } from "../execute";
 
 export function expression(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue):BinaryExpression {
@@ -46,3 +46,14 @@ export function literal(value:LiteralValue):Literal {
       throw new Error("Unexpected literal type: " + typeof value);
   }
 } 
+
+export function aggregateFunction(name:AvailableAggregations, expr:ColumnRef):AggregateExpression {
+  return {
+    type: "aggr_func",
+    name: name, 
+    args: {
+      expr: expr
+    },
+    over: null
+  }
+}

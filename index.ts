@@ -18,7 +18,7 @@ let results = execute(`
 
   INSERT INTO People VALUES ('Tim', 20, 1), ('Liz', 21, 2);
   
-  UPDATE People SET name = age WHERE name = 'Tim';
+  SELECT AVG(age) FROM People;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));

@@ -366,3 +366,12 @@ export class JoinedTable extends Table {
     return newRows;
   }
 }
+
+export type AggregateTableOptions = {
+  table: Table,
+  projectedColumns: Array<string>
+}
+
+export class AggregateTable extends Table {
+  
+}

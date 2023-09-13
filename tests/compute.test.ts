@@ -1,6 +1,7 @@
-import compute, { BinaryExpression, Expression, ExpressionList, Literal, LiteralValue, NumberLiteral, StringLiteral, stringifyExpression } from "../compute"
+import compute, { AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, stringifyExpression } from "../compute"
+import { ColumnRef } from "../execute";
 import Table from "../storage/table";
-import { columnRef, expression } from "./helpers";
+import { aggregateFunction, columnRef, expression } from "./helpers";
 
 describe("Compute", () => {
   function run(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue) {
@@ -13,6 +14,12 @@ describe("Compute", () => {
     return table.getRows().map((row) => {
       return compute(expr, row, table.columnIndexMap);
     });
+  }
+
+  function runAggregate(name:AvailableAggregations, expr:ColumnRef, table:Table) {
+    return computeAggregates([
+      aggregateFunction(name, expr)
+    ], table.getRows(), table.columnIndexMap)[0];
   }
 
   test("computes simple boolean expressions with literals", () => {
@@ -89,5 +96,18 @@ describe("Compute", () => {
     expect(run('8Ball', "LIKE", '_Ball')).toBe(true);
     expect(run('8Ball', "LIKE", '_')).toBe(false);
     expect(run('8Ball', "LIKE", '%')).toBe(true);
+  })
+
+  test("aggregate computation", () => {
+    let table = new Table("People", ["name", "age"]);
+    table.insert([
+      ["Tim", 30],
+      ["Liz", 21]
+    ]);
+
+    expect(runAggregate("AVG", columnRef("age"), table)).toEqual(25.5);
+    expect(runAggregate("SUM", columnRef("age"), table)).toEqual(51);
+    expect(runAggregate("MIN", columnRef("age"), table)).toEqual(21);
+    expect(runAggregate("MAX", columnRef("age"), table)).toEqual(30);
   })
 })
