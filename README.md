@@ -33,8 +33,9 @@ More to come!
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
 - [ ] SELECT ... FROM ... ORDER BY _col1, col2, ..._ (single and multi-column row ordering)
 - [x] SELECT _FUNC(col1)_ FROM Table (simple aggregation)
-- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY (simple aggregation with grouping)
-- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY ... HAVING ... (aggregation with grouping and filtering) 
+- [x] SELECT _FUNC(col1 + 100)_ FROM Table (aggregation with expressions)
+- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY (aggregation with grouping)
+- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY ... HAVING ... (with grouping and filtering) 
  
 
 #### CREATE TABLE 

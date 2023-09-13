@@ -476,13 +476,31 @@ describe("execute()", () => {
     
       INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 48);
     
-      SELECT AVG(age) FROM People WHERE age > 25
+      SELECT AVG(age) FROM People WHERE age > 25;
     `);
 
     expect(results.length).toBe(3);
     expect(Array.isArray(results[2])).toBe(true);
 
     expect(results[2]).toEqual([[39]]);
+  });
+
+  test('simple aggregate with expression as a parameter', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 51);
+    
+      SELECT AVG(age + 100) FROM People;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([[134]]);
   });
 
 

@@ -360,17 +360,9 @@ export function computeAggregates(columns:Array<ColumnRef|AggregateExpression>, 
 
   rows.forEach((row) => {
     aggregateExpressions.forEach((aggrFunc, funcIndex) => {
-      let column = aggrFunc.args.expr.column;
-      let dataIndex = columnIndexMap[column]; 
-
-      // TODO: Do we need this error? Could it actually be fine? Should we just
-      // run the expression first? 
-      if (typeof dataIndex != "number") {
-        throw new Error("Unexpected expression source for column " + column + " during aggregation");
-      }
-
-      // Throw the next value through the aggregator
-      aggregators[funcIndex].next(row.cell(dataIndex as number).getData(commit))
+      let expr = aggrFunc.args.expr;
+      let value:CellData = compute(expr, row, columnIndexMap, commit);
+      aggregators[funcIndex].next(value);
     })
   });
 
