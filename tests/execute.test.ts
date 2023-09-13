@@ -485,7 +485,7 @@ describe("execute()", () => {
     expect(results[2]).toEqual([[39]]);
   });
 
-  test('simple aggregate with expression as a parameter', () => {
+  test('aggregate with expression as a parameter', () => {
     let {results, storage} = execute(`
       CREATE TABLE People (
         name VARCHAR(20),
@@ -501,6 +501,24 @@ describe("execute()", () => {
     expect(Array.isArray(results[2])).toBe(true);
 
     expect(results[2]).toEqual([[134]]);
+  });
+
+  test('aggregate as expression', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 51);
+    
+      SELECT SUM(age) + 100 FROM People;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([[202]]);
   });
 
 

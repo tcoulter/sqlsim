@@ -1,4 +1,4 @@
-import compute, { AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, stringifyExpression } from "../compute"
+import compute, { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute"
 import { ColumnRef } from "../execute";
 import Table from "../storage/table";
 import { aggregateFunction, columnRef, expression } from "./helpers";
@@ -16,10 +16,14 @@ describe("Compute", () => {
     });
   }
 
-  function runAggregate(name:AvailableAggregations, expr:ColumnRef, table:Table) {
+  function runAggregate(name:AvailableAggregations, expr:ColumnRef|BinaryExpression, table:Table) {
     return computeAggregates([
       aggregateFunction(name, expr)
     ], table.getRows(), table.columnIndexMap)[0];
+  }
+
+  function runExpressionWithAggregates(expr:ColumnRef|BinaryExpression|AggregateExpression, table:Table) {
+    return computeAggregates([expr], table.getRows(), table.columnIndexMap)[0];
   }
 
   test("computes simple boolean expressions with literals", () => {
@@ -112,5 +116,18 @@ describe("Compute", () => {
 
     // Usually COUNT(*) is used... we don't support the * yet
     expect(runAggregate("COUNT", columnRef("age"), table)).toEqual([2]);
+
+    // With an expression inside the aggregation (e.g., SUM(age + 100) )
+    expect(runAggregate("SUM", expression(columnRef("age"), "+", 100), table)).toEqual([251]);
+
+    // With an aggregation inside an expression (e.g., (SUM(age) + 100) )
+    expect(runExpressionWithAggregates(
+      expression(
+        aggregateFunction("SUM", columnRef("age")),
+        "+",
+        100
+      ),
+      table
+    )).toEqual([151]);
   })
 })

@@ -1,4 +1,4 @@
-import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates } from "../compute";
+import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, stringifyExpression } from "../compute";
 import { ColumnRef, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
@@ -363,17 +363,13 @@ export class JoinedTable extends Table {
 }
 
 export class AggregateTable extends Table {
-  #columns:Array<ColumnRef|AggregateExpression>;
+  #columns:Array<ColumnRef|BinaryExpression|AggregateExpression>;
   #aggregatorExpressions:Record<string, AggregateExpression>;
   baseTable:Table;
 
-  constructor(columns:Array<ColumnRef|AggregateExpression>, table:Table) {
+  constructor(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, table:Table) {
     let columnNames = columns.map((column) => {
-      if (column.type == "column_ref") {
-        return column.column;
-      } else {
-        return computeAggregateName(column);
-      }
+      return stringifyExpression(column);
     });
 
     super(table.name, columnNames, table.createdAt);

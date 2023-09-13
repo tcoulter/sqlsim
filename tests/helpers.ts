@@ -47,7 +47,7 @@ export function literal(value:LiteralValue):Literal {
   }
 } 
 
-export function aggregateFunction(name:AvailableAggregations, expr:ColumnRef):AggregateExpression {
+export function aggregateFunction(name:AvailableAggregations, expr:ColumnRef|BinaryExpression):AggregateExpression {
   return {
     type: "aggr_func",
     name: name, 

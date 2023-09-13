@@ -18,7 +18,7 @@ let results = execute(`
 
   INSERT INTO People VALUES ('Tim', 20, 1), ('Liz', 21, 2);
   
-  SELECT from_id, AVG(age + 2) + 3 FROM People GROUP BY from_id;
+  SELECT from_id, AVG(SUM(age)) FROM People GROUP BY from_id;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));

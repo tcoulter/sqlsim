@@ -7,7 +7,7 @@ import { ColumnIndexMap } from "./storage/table";
 
 // Damn parser doesn't give us an Expression type
 
-export type Expression = ColumnRef | Literal | BinaryExpression | ExpressionList;
+export type Expression = ColumnRef | Literal | BinaryExpression | AggregateExpression | ExpressionList;
 export type SingleExpression = ColumnRef | Literal | BinaryExpression;
 export type Literal = NumberLiteral | StringLiteral | NullLiteral | BooleanLiteral;
 
@@ -49,7 +49,7 @@ export type BooleanLiteral = {
 export type LiteralValue = Literal['value'];
 export type ComputationResult = LiteralValue;
 
-export function stringifyExpression(expr:ColumnRef|Literal|BinaryExpression|ExpressionList, depth:number = 0):string {
+export function stringifyExpression(expr:Expression, depth:number = 0):string {
   switch(expr.type) {
     case "column_ref": 
       return expr.column;
@@ -71,6 +71,8 @@ export function stringifyExpression(expr:ColumnRef|Literal|BinaryExpression|Expr
       return expr.value.toString();
     case "single_quote_string":
       return "'" + expr.value.toString() + "'";
+    case "aggr_func": 
+      return computeAggregateName(expr);
     default:
       // I want to have this error here for safety, but Typescript doesn't think we'll ever
       // run this line (neither do I). Added an 'any' to make Typescript happy and ensure
@@ -79,11 +81,11 @@ export function stringifyExpression(expr:ColumnRef|Literal|BinaryExpression|Expr
   }
 }
 
-export default function compute(expr:ColumnRef|Literal|BinaryExpression|ExpressionList, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = {}, commit?:Commit):ComputationResult {
+export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = {}, commit?:Commit, aggregateResults:Record<string, CellData> = {}):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
-      let left = compute(expr.left, row, columnIndexMap);
-      let right = compute(expr.right, row, columnIndexMap);
+      let left = compute(expr.left, row, columnIndexMap, commit, aggregateResults);
+      let right = compute(expr.right, row, columnIndexMap, commit, aggregateResults);
       return computeBinaryOperation(left, right, expr.operator);
     case "number":
     case "single_quote_string": 
@@ -95,12 +97,14 @@ export default function compute(expr:ColumnRef|Literal|BinaryExpression|Expressi
       // TODO: Test this! 
       let dataIndex:number = columnIndexMap[expr.column] as number;
       if (typeof dataIndex == "undefined") {
-        console.log(columnIndexMap);
         throw new Error("Cannot find column " + expr.column);
       }
       let value = row.cell(dataIndex).getData(commit);
       // console.log("Resolving column " + expr.column + " (index: " + dataIndex + ") to value:", value);
       return value;
+    case "aggr_func": 
+      let name = computeAggregateName(expr);
+      return aggregateResults[name];
     default: 
       throw new Error("Expression type " + expr.type + " not yet supported");
   }
@@ -210,13 +214,15 @@ type AggregatorResultFn = (data:AggregatorData) => CellData;
 
 class Aggregator {
   name:string;
+  expr:AggregateExpression;
   data:AggregatorData;
   #next:AggregatorNextFn;
   #result:AggregatorResultFn;
   allowsNull:boolean;
 
-  constructor(name:string, {start, next, result}:AggregatorDefinition, allowsNull = false) {
+  constructor(name:string, expr:AggregateExpression, {start, next, result}:AggregatorDefinition, allowsNull = false) {
     this.name = name;
+    this.expr = expr;
     this.#next = next;
     this.#result = result;
     this.allowsNull = allowsNull;
@@ -326,54 +332,110 @@ export const aggregatorDefinitions:AggregatorDefinitionList = {
 export type AggregateExpression = Omit<ASTAggrFunc, 'args'> & {
   type: "aggr_func",
   args: {
-    expr: ColumnRef // TODO: Support full expressions, *, and inner functions
+    expr: ColumnRef | BinaryExpression // TODO: Support full expressions, *, and inner functions
   },
   over: null
 }
 
 export function computeAggregateName(expr:AggregateExpression):string {
-  return expr.name + "(" + expr.args.expr.column + ")";
+  let name = expr.name + "(";
+  name += stringifyExpression(expr.args.expr);
+  name += ")";
+  return name;
 }
 
 // TODO: Group by non-aggregate functions passed (all column refs)
-export function computeAggregates(columns:Array<ColumnRef|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Array<CellData>> {
-  // This maps directly to columns, replacing Aggregate expressions with aggregators
-  let columnsWithAggregators:Array<ColumnRef|Aggregator> = [];
+export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Array<CellData>> {
+  let aggregatorsByName:Record<string, Aggregator> = {};
 
-  // These two are meant to have the same length, indexes mapping to related data
-  let aggregateExpressions:Array<AggregateExpression> = [];
-  let aggregators:Array<Aggregator> = [];
-
+  // Note that columns may have multiple aggregators. For instance, this is valid SQL:
+  // SELECT AVG(age) + MAX(age) FROM ...
   columns.forEach((column) => {
-    if (column.type == "aggr_func") {
-      let name = computeAggregateName(column);
-      let aggregator = new Aggregator(name, aggregatorDefinitions[column.name as AvailableAggregations]);
+    let aggregates = extractAggregateExpressions(column);
 
-      aggregators.push(aggregator);
-      aggregateExpressions.push(column);
-
-      columnsWithAggregators.push(aggregator);
-    } else {
-      columnsWithAggregators.push(column);
-    }
+    aggregates.forEach((aggregate) => {
+      let name = computeAggregateName(aggregate);
+      aggregatorsByName[name] = new Aggregator(name, aggregate, aggregatorDefinitions[aggregate.name]);
+    })
   });
 
   rows.forEach((row) => {
-    aggregateExpressions.forEach((aggrFunc, funcIndex) => {
-      let expr = aggrFunc.args.expr;
-      let value:CellData = compute(expr, row, columnIndexMap, commit);
-      aggregators[funcIndex].next(value);
-    })
+    Object.entries(aggregatorsByName).forEach(([name, aggregator]) => {
+      // Note that we're computing what's inside the aggregation here. 
+      let value:CellData = compute(aggregator.expr.args.expr, row, columnIndexMap, commit);
+      aggregator.next(value);
+    });
   });
 
+  let aggregationResultsByName:Record<string, CellData> = {};
+  Object.entries(aggregatorsByName).forEach(([name, aggregator]) => {
+    aggregationResultsByName[name] = aggregator.result();
+  });
+
+  // Create a temporary row filled with all the base columns
+  // These will be used as a data source for computing expression results. 
+  let results = new Row(new Array(columns.length).fill(null));
+  let resultsColumnIndexMap:Record<string, number> = {};
+  columns.forEach((column, index) => {
+    let columnName = stringifyExpression(column);
+    resultsColumnIndexMap[columnName] = index;
+
+    if (column.type == "column_ref") {
+      // TODO: This will need to be changed to be a specific value when we add grouping! 
+      results.cell(index).put(null);
+    }
+  })
+
+  // Now do a final pass computing expressions that need column results
+  // You might think this is overkill but expressions like the following are valid.
+  // This is probably has bad names, but both dept and empId are integers. 
+  // 
+  // SELECT dept, SUM(empId) + dept FROM EMPLOYEE GROUP BY dept;
+  columns.forEach((column, index) => {
+    let columnName = stringifyExpression(column);
+    resultsColumnIndexMap[columnName] = index;
+
+    if (column.type != "column_ref") {
+      let value = compute(column, results, resultsColumnIndexMap, commit, aggregationResultsByName);
+      results.cell(index).put(value);
+    }
+  })
+
   // TODO: Null out any non-aggregate columns for now. 
-  return [
-    columnsWithAggregators.map((column) => {
-      if (column instanceof Aggregator) {
-        return column.result();
-      } else {
-        return null;
-      }
-    })
-  ];
+  return [results.getData()];
 }
+
+export function includesAggregation(expr:Expression):boolean {
+  switch(expr.type) {
+    case "binary_expr":
+      return includesAggregation(expr.left) || includesAggregation(expr.right);
+    case "aggr_func":
+      return true;
+    case "number":
+    case "column_ref":
+    case "single_quote_string":
+    case "null":
+    case "bool":
+      return false;
+    default: 
+      throw new Error("Unexpected expression type: " + expr.type);
+  }
+}
+
+export function extractAggregateExpressions(expr:Expression):Array<AggregateExpression> {
+  switch(expr.type) {
+    case "binary_expr":
+      return extractAggregateExpressions(expr.left).concat(extractAggregateExpressions(expr.right));
+    case "aggr_func":
+      return [expr];
+    case "number":
+    case "column_ref":
+    case "single_quote_string":
+    case "null":
+    case "bool":
+      return [];
+    default: 
+      throw new Error("Unexpected expression type: " + expr.type);
+  }
+}
+

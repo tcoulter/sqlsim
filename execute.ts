@@ -11,7 +11,7 @@ import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
 import Table, { AggregateTable, FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
-import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, stringifyExpression } from "./compute";
+import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, includesAggregation, stringifyExpression } from "./compute";
 import {debug} from "debug";
 
 const debugAst = debug('ast');
@@ -255,8 +255,6 @@ function select(ast:Select, storage:Storage):Table {
     })
   }
 
-  
-
   // Do projection OR aggregation.
   // Note that we're checking for the case where ast.columns is *. 
   // This looks like it won't ever happen, but it's an allowed possibility
@@ -264,16 +262,11 @@ function select(ast:Select, storage:Storage):Table {
   // column_ref that the below code expands out. 
   if (ast.columns != "*") {
     // Check for aggregation
-    let includesAggregation = false; 
+    let hasAggregation = ast.columns.reduce((previousValue, column) => {
+      return previousValue || includesAggregation(column.expr)
+    }, false);
 
-    for (var i = 0; i < ast.columns.length; i++) {
-      if (ast.columns[i].expr.type == "aggr_func") {
-        includesAggregation = true;
-        break;
-      }
-    }
-
-    if (includesAggregation == true) {
+    if (hasAggregation == true) {
       // Aggregation
       // TODO: Binary expressions with aggregate functions inside! 
       table = new AggregateTable(ast.columns.map((spec) => spec.expr as ColumnRef|AggregateExpression), table);
