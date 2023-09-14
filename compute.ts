@@ -2,7 +2,7 @@ import { AggrFunc as ASTAggrFunc } from "node-sql-parser";
 import { ColumnRef } from "./execute";
 import { CellData } from "./storage/cell";
 import { Commit } from "./storage/commit";
-import Row from "./storage/row";
+import Row, { JoinedRow } from "./storage/row";
 import { ColumnIndexMap } from "./storage/table";
 
 // Damn parser doesn't give us an Expression type
@@ -81,11 +81,11 @@ export function stringifyExpression(expr:Expression, depth:number = 0):string {
   }
 }
 
-export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = {}, commit?:Commit, aggregateResults:Record<string, CellData> = {}):ComputationResult {
+export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = {}, commit?:Commit):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
-      let left = compute(expr.left, row, columnIndexMap, commit, aggregateResults);
-      let right = compute(expr.right, row, columnIndexMap, commit, aggregateResults);
+      let left = compute(expr.left, row, columnIndexMap, commit);
+      let right = compute(expr.right, row, columnIndexMap, commit);
       return computeBinaryOperation(left, right, expr.operator);
     case "number":
     case "single_quote_string": 
@@ -104,7 +104,7 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
       return value;
     case "aggr_func": 
       let name = computeAggregateName(expr);
-      return aggregateResults[name];
+      return row.cell(columnIndexMap[name] as number).getData(commit);
     default: 
       throw new Error("Expression type " + expr.type + " not yet supported");
   }
@@ -220,8 +220,8 @@ class Aggregator {
   #result:AggregatorResultFn;
   allowsNull:boolean;
 
-  constructor(name:string, expr:AggregateExpression, {start, next, result}:AggregatorDefinition, allowsNull = false) {
-    this.name = name;
+  constructor(expr:AggregateExpression, {start, next, result}:AggregatorDefinition, allowsNull = false) {
+    this.name = computeAggregateName(expr);
     this.expr = expr;
     this.#next = next;
     this.#result = result;
@@ -344,66 +344,69 @@ export function computeAggregateName(expr:AggregateExpression):string {
   return name;
 }
 
-// TODO: Group by non-aggregate functions passed (all column refs)
-export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Row> {
-  let aggregatorsByName:Record<string, Aggregator> = {};
+export type ComputeAggregatesOptions = {
+  aggregates: Array<AggregateExpression>,
+  rows:Array<Row>,
+  columnIndexMap:ColumnIndexMap,
+  groupColumns?:Array<ColumnRef>,
+  commit?:Commit
+}
 
-  // Note that columns may have multiple aggregators. For instance, this is valid SQL:
-  // SELECT AVG(age) + MAX(age) FROM ...
-  columns.forEach((column) => {
-    let aggregates = extractAggregateExpressions(column);
+export function computeAggregates({aggregates, rows, columnIndexMap, groupColumns = [], commit}:ComputeAggregatesOptions):Array<Row> {
+  type AggregatorByHash = Record<string, {
+    groupCombination: CellData[],
+    aggregators: Array<Aggregator>
+  }>;
 
-    aggregates.forEach((aggregate) => {
-      let name = computeAggregateName(aggregate);
-      aggregatorsByName[name] = new Aggregator(name, aggregate, aggregatorDefinitions[aggregate.name]);
-    })
-  });
+  let aggregatorsByCombination:AggregatorByHash = {};
 
   rows.forEach((row) => {
-    Object.entries(aggregatorsByName).forEach(([name, aggregator]) => {
+    let groupCombination = groupColumns.map((column) => {
+      // TODO: Can this point to a binary expression? 
+      return row.cell(columnIndexMap[column.column] as number).getData(commit)
+    })
+
+    // Use JSON.stringify() as our hashing function. Is is slow? Probably.
+    // Do we care right now? Not really. 
+    let hash = JSON.stringify(groupCombination);
+
+    if (typeof aggregatorsByCombination[hash] == "undefined") {
+      aggregatorsByCombination[hash] = {
+        groupCombination,
+        aggregators: aggregates.map((expr) => {
+          return new Aggregator(expr, aggregatorDefinitions[expr.name as AvailableAggregations])
+        })
+      }
+    }
+
+    aggregatorsByCombination[hash].aggregators.forEach((aggregator) => {
       // Note that we're computing what's inside the aggregation here. 
       let value:CellData = compute(aggregator.expr.args.expr, row, columnIndexMap, commit);
       aggregator.next(value);
-    });
+    })
   });
 
-  let aggregationResultsByName:Record<string, CellData> = {};
-  Object.entries(aggregatorsByName).forEach(([name, aggregator]) => {
-    aggregationResultsByName[name] = aggregator.result();
+  let aggregatorResultsByCombination:Record<string, Row> = {};
+
+  Object.entries(aggregatorsByCombination).forEach(([hash, {aggregators}]) => {
+    aggregatorResultsByCombination[hash] = new Row(aggregators.map((aggregator) => aggregator.result()), commit)
   });
 
-  // Create a temporary row filled with all the base columns
-  // These will be used as a data source for computing expression results. 
-  let results = new Row(new Array(columns.length).fill(null), commit);
-  let resultsColumnIndexMap:Record<string, number> = {};
-  columns.forEach((column, index) => {
-    let columnName = stringifyExpression(column);
-    resultsColumnIndexMap[columnName] = index;
+  return rows.map((sourceRow) => {
+    let groupCombination = groupColumns.map((column) => {
+      // TODO: Can this point to a binary expression? 
+      return sourceRow.cell(columnIndexMap[column.column] as number).getData(commit)
+    })
 
-    if (column.type == "column_ref") {
-      // TODO: This will need to be changed to be a specific value when we add grouping! 
-      // For now: Do nothing, we'll lave it null. 
-    }
+    let hash = JSON.stringify(groupCombination);
+
+    return new JoinedRow(
+      sourceRow,
+      aggregatorResultsByCombination[hash]
+    );
   })
-
-  // Now do a final pass computing expressions that need column results
-  // You might think this is overkill but expressions like the following are valid.
-  // This is probably has bad names, but both dept and empId are integers. 
-  // 
-  // SELECT dept, SUM(empId) + dept FROM EMPLOYEE GROUP BY dept;
-  columns.forEach((column, index) => {
-    let columnName = stringifyExpression(column);
-    resultsColumnIndexMap[columnName] = index;
-
-    if (column.type != "column_ref") {
-      let value = compute(column, results, resultsColumnIndexMap, commit, aggregationResultsByName);
-      results.cell(index).put(value, commit);
-    }
-  })
-
-  // TODO: Null out any non-aggregate columns for now. 
-  return [results];
 }
+
 
 export function includesAggregation(expr:Expression):boolean {
   switch(expr.type) {

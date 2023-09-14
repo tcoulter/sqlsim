@@ -10,8 +10,8 @@ import {
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { AggregateTable, FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
-import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, includesAggregation, stringifyExpression } from "./compute";
+import Table, { AggregateTable, DistinctTable, FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
+import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, extractAggregateExpressions, includesAggregation, stringifyExpression } from "./compute";
 import {debug} from "debug";
 
 const debugAst = debug('ast');
@@ -66,6 +66,7 @@ interface Select extends ASTSelect {
   from: TableSpecifier[], // This will need to change later wrt subqueries
   columns: ColumnSpecifier[] | "*" // Remove the any[]
   where: BinaryExpression | null,
+  groupby: Array<ColumnRef> | null
 }
 
 interface Update extends ASTUpdate {
@@ -255,53 +256,40 @@ function select(ast:Select, storage:Storage):Table {
     })
   }
 
-  // Do projection OR aggregation.
+  // Do aggregation and projection.
   // Note that we're checking for the case where ast.columns is *. 
   // This looks like it won't ever happen, but it's an allowed possibility
   // by the type provided by the parser. Note that we'll instead get * as a 
   // column_ref that the below code expands out. 
+  let hasAggregation = false;
+
   if (ast.columns != "*") {
     // Check for aggregation
-    let hasAggregation = ast.columns.reduce((previousValue, column) => {
+    hasAggregation = ast.columns.reduce((previousValue, column) => {
       return previousValue || includesAggregation(column.expr)
     }, false);
 
     if (hasAggregation == true) {
       // Aggregation
-      table = new AggregateTable(ast.columns.map((spec) => spec.expr as ColumnRef|BinaryExpression|AggregateExpression), table);
-    } else {
-      // Projection 
-      let projectedColumns:Array<string> = [];
-      let computedColumns:Record<string, BinaryExpression> = {};
+      let aggregates = ast.columns.reduce((arr, currentValue) => {
+        return arr.concat(extractAggregateExpressions(currentValue.expr));
+      }, [] as Array<AggregateExpression>);
 
-      ast.columns.forEach((column) => {
-        let columnName = "";
-        switch(column.expr.type) {
-          case "column_ref":
-            columnName = column.expr.column;
-
-            if (columnName == "*") {
-              (projectedColumns as Array<string>).push.apply(projectedColumns, table.columns);
-            } else {
-              (projectedColumns as Array<string>).push(columnName);
-            }
-            break;
-          case "binary_expr": 
-            columnName = stringifyExpression(column.expr);
-            (projectedColumns as Array<string>).push(columnName);
-            computedColumns[columnName] = column.expr;
-            break;
-          default: 
-            throw new Error("Unsupported column type in projection: " + (column.expr as any).type);
-        }
-      });
-
-      table = new ProjectedTable({
-        table,
-        columns: projectedColumns,
-        computedColumns
-      })
+      // Let's compute all the aggrgates. Note that this adds aggregate calculations to the table. 
+      table = new AggregateTable(aggregates, table, ast.groupby || []);
     }
+
+    // Projection 
+    table = new ProjectedTable({
+      table,
+      columns: ast.columns.map((column) => column.expr)
+    })
+  }
+
+  // Now perform the final grouping
+  // TODO: Test if this works correctly *without* aggregates
+  if (ast.groupby != null || hasAggregation) {
+    table = new DistinctTable(table, ast.groupby || []);
   }
 
   // Return a locked version of the table so this intsance will return 

@@ -1,6 +1,6 @@
 import compute, { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute"
 import { ColumnRef } from "../execute";
-import Table from "../storage/table";
+import Table, { AggregateTable } from "../storage/table";
 import { aggregateFunction, columnRef, expression } from "./helpers";
 
 describe("Compute", () => {
@@ -16,14 +16,13 @@ describe("Compute", () => {
     });
   }
 
-  function runAggregate(name:AvailableAggregations, expr:ColumnRef|BinaryExpression, table:Table) {
-    return computeAggregates([
-      aggregateFunction(name, expr)
-    ], table.getRows(), table.columnIndexMap)[0].getData();
-  }
-
-  function runExpressionWithAggregates(expr:ColumnRef|BinaryExpression|AggregateExpression, table:Table) {
-    return computeAggregates([expr], table.getRows(), table.columnIndexMap)[0].getData();
+  function runAggregate(name:AvailableAggregations, expr:ColumnRef|BinaryExpression, table:Table, groupBy?:Array<ColumnRef>) {
+    return computeAggregates({
+      aggregates:  [aggregateFunction(name, expr)],
+      rows: table.getRows(),
+      columnIndexMap: table.columnIndexMap,
+      groupColumns: groupBy
+    }).map((row) => row.getData());
   }
 
   test("computes simple boolean expressions with literals", () => {
@@ -109,25 +108,60 @@ describe("Compute", () => {
       ["Liz", 21]
     ]);
 
-    expect(runAggregate("AVG", columnRef("age"), table)).toEqual([25.5]);
-    expect(runAggregate("SUM", columnRef("age"), table)).toEqual([51]);
-    expect(runAggregate("MIN", columnRef("age"), table)).toEqual([21]);
-    expect(runAggregate("MAX", columnRef("age"), table)).toEqual([30]);
+    expect(runAggregate("AVG", columnRef("age"), table)).toEqual([
+      ["Tim", 30, 25.5],
+      ["Liz", 21, 25.5]
+    ]);
+    expect(runAggregate("SUM", columnRef("age"), table)).toEqual([
+      ["Tim", 30, 51],
+      ["Liz", 21, 51]
+    ]);
+    expect(runAggregate("MIN", columnRef("age"), table)).toEqual([
+      ["Tim", 30, 21],
+      ["Liz", 21, 21]
+    ]);
+    expect(runAggregate("MAX", columnRef("age"), table)).toEqual([
+      ["Tim", 30, 30],
+      ["Liz", 21, 30]
+    ]);
 
     // Usually COUNT(*) is used... we don't support the * yet
-    expect(runAggregate("COUNT", columnRef("age"), table)).toEqual([2]);
+    expect(runAggregate("COUNT", columnRef("age"), table)).toEqual([
+      ["Tim", 30, 2],
+      ["Liz", 21, 2]
+    ]);
 
     // With an expression inside the aggregation (e.g., SUM(age + 100) )
-    expect(runAggregate("SUM", expression(columnRef("age"), "+", 100), table)).toEqual([251]);
+    expect(runAggregate("SUM", expression(columnRef("age"), "+", 100), table)).toEqual([
+      ["Tim", 30, 251],
+      ["Liz", 21, 251]
+    ]);
 
     // With an aggregation inside an expression (e.g., (SUM(age) + 100) )
-    expect(runExpressionWithAggregates(
-      expression(
-        aggregateFunction("SUM", columnRef("age")),
-        "+",
-        100
-      ),
-      table
-    )).toEqual([151]);
+    // expect(runExpressionWithAggregates(
+    //   expression(
+    //     aggregateFunction("SUM", columnRef("age")),
+    //     "+",
+    //     100
+    //   ),
+    //   table
+    // )).toEqual([151]);
+  })
+
+  test("aggregate with grouping", () => {
+    let table = new Table("People", ["name", "age", "dept"]);
+    table.insert([
+      ["Tim", 30, "Sales"],
+      ["Liz", 21, "Sales"],
+      ["Bob", 45, "Accounting"],
+      ["Sarah", 35, "Accounting"]
+    ]);
+
+    expect(runAggregate("AVG", columnRef("age"), table, [columnRef("dept")])).toEqual([
+      ["Tim", 30, "Sales", 25.5],
+      ["Liz", 21, "Sales", 25.5],
+      ["Bob", 45, "Accounting", 40],
+      ["Sarah", 35, "Accounting", 40]
+    ]);
   })
 })

@@ -539,6 +539,29 @@ describe("execute()", () => {
     expect(results[2]).toEqual([[136]]);
   });
 
+  test('aggregations with group by ', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        dept VARCHAR(20)
+      );
+    
+      INSERT INTO People VALUES 
+        ('Tim', 30, 'Sales'),
+        ('Liz', 21, 'Sales'),
+        ('Bob', 45, 'Accounting'),
+        ('Sarah', 35, 'Accounting');
+    
+      SELECT AVG(age) FROM People GROUP BY dept;
+    `);
 
-  // TODO: left, right and full joins (need to study parser)
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      [25.5],
+      [40]
+    ]);
+  });
 })

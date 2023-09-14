@@ -1,10 +1,10 @@
-import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, stringifyExpression } from "../compute";
+import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute";
 import { ColumnRef, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
 
-export type ColumnIndexMap = Record<string, number|BinaryExpression>;
+export type ColumnIndexMap = Record<string, number|BinaryExpression|AggregateExpression>;
 
 export default class Table extends Committed {
   name:string;
@@ -95,12 +95,19 @@ export default class Table extends Committed {
     })
   }
 
-  project(columns:Array<string>, computedColumns:ComputedColumnsList = {}) {
+  project(columns:Array<string>) {
     // Lock it like it's hot
     return new ProjectedTable({
       table: this, 
-      columns,
-      computedColumns
+      columns: columns.map((columnName) => {
+        // TODO: This is a hack! We'll eventually want to refactor everything to use
+        // column references instead of strings. 
+        return {
+          type: "column_ref",
+          table: null,
+          column: columnName
+        }
+      }),
     });
   }
 
@@ -186,7 +193,7 @@ export class LockedTable extends Table {
 
 export type RowFilter = (table:FilteredTable, row:Row) => boolean;
 
-export type ComputedTableOptions = {
+export type FilteredTableOptions = {
   table: Table, 
   rowFilters?: Array<RowFilter>,
   commit?:Commit
@@ -195,7 +202,7 @@ export type ComputedTableOptions = {
 export class FilteredTable extends LockedTable {
   rowFilters:Array<RowFilter>;
 
-  constructor({table, rowFilters = [], commit}:ComputedTableOptions) {
+  constructor({table, rowFilters = [], commit}:FilteredTableOptions) {
     super(table);
 
     this.baseTable = table;
@@ -220,32 +227,40 @@ export class FilteredTable extends LockedTable {
   }
 }
 
-export type ComputedColumnsList = Record<string, BinaryExpression>;
+export type ComputedColumnsList = Record<string, BinaryExpression|AggregateExpression>;
 
 export type ProjectedTableOptions = {
   table: Table,
-  columns: Array<string>,
+  columns: Array<ColumnRef|BinaryExpression|AggregateExpression>,
   computedColumns?: ComputedColumnsList,
   commit?:Commit
 }
 
 export class ProjectedTable extends LockedTable {
-  constructor({table, columns, computedColumns = {}, commit}:ProjectedTableOptions) {
+  constructor({table, columns}:ProjectedTableOptions) {
     super(table);
-    this.columns = columns || table.columns;
+    this.columns = [];
+    
+    columns.forEach((column) => {
+      if (column.type == "column_ref" && column.column == "*") {
+        this.columns.push.apply(this.columns, table.columns);
+      } else {
+        this.columns.push(stringifyExpression(column));
+      }
+    });
+  
+    this.columnIndexMap = Object.assign(table.columnIndexMap);
 
-    // Rewrite the columnIndexMap so that computed columns are added
-    this.columnIndexMap = {};
+    columns.forEach((column, index) => {
+      if (column.type == "binary_expr" || column.type == "aggr_func") {
+        let name = stringifyExpression(column);
 
-    // This block clones the original
-    Object.entries(table.columnIndexMap).forEach(([column, source]) => {
-      this.columnIndexMap[column] = source;
+        // Only attempt to recalculate if an index for this aggregate isn't set
+        if (typeof table.columnIndexMap[name] == "undefined") {
+          this.columnIndexMap[this.columns[index]] = column;
+        }
+      } 
     })
-
-    // Now add the computed columns in 
-    Object.entries(computedColumns).forEach(([column, expr]) => {
-      this.columnIndexMap[column] = expr;
-    }); 
   }
 }
 
@@ -363,48 +378,75 @@ export class JoinedTable extends Table {
 }
 
 export class AggregateTable extends Table {
-  #columns:Array<ColumnRef|BinaryExpression|AggregateExpression>;
-  #aggregatorExpressions:Record<string, AggregateExpression>;
+  #aggregates:Array<AggregateExpression>;
   baseTable:Table;
+  groupColumns:Array<ColumnRef>;
 
-  constructor(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, table:Table) {
-    let columnNames = columns.map((column) => {
-      return stringifyExpression(column);
+  constructor(aggregates:Array<AggregateExpression>, table:Table, groupColumns:Array<ColumnRef> = []) {
+    let aggregateNames = aggregates.map((aggregate) => {
+      return stringifyExpression(aggregate);
     });
+
+    let columnNames = table.columns.concat(aggregateNames);
 
     super(table.name, columnNames, table.createdAt);
 
+    this.#aggregates = aggregates;
     this.baseTable = table;
-    this.#columns = columns;
+    this.groupColumns = groupColumns;
 
-    // Write a column index map that maps to the rows we will create
-    this.columnIndexMap = {};
+    // Write a column index map that includes the base table plus our aggregates
+    // We'll update our source data cell count at the same time. 
+    this.columnIndexMap = Object.assign({}, table.columnIndexMap);
+    this.sourceDataCellCount = table.sourceDataCellCount;
 
-    columnNames.forEach((name, index) => {
-      this.columnIndexMap[name] = index;
+    aggregateNames.forEach((aggregateName) => {
+      let newIndex = this.sourceDataCellCount;
+      this.columnIndexMap[aggregateName] = newIndex;
+      this.sourceDataCellCount += 1;
     })
-
-    // Update our cell count we project to others
-    this.sourceDataCellCount = this.columns.length;
-  
-    // Save our aggregation expressions in a name -> expr record
-    this.#aggregatorExpressions = {};
-
-    columns.forEach((column) => {
-      if (column.type == "aggr_func") {
-        this.#aggregatorExpressions[computeAggregateName(column)] = column;
-      }
-    });
   }
 
   getRows(commit?:Commit):Array<Row> {
-    let rows = computeAggregates(
-      this.#columns,
-      this.baseTable.getRows(commit),
-      this.baseTable.columnIndexMap,
+    return computeAggregates({
+      aggregates: this.#aggregates,
+      rows: this.baseTable.getRows(commit),
+      columnIndexMap: this.baseTable.columnIndexMap,
+      groupColumns: this.groupColumns,
       commit
-    );
+    });
+  }
+}
 
-    return rows;
+// This class will return the first row found for every distinct
+// combination of the distinct columns. 
+export class DistinctTable extends Table {
+  baseTable:Table;
+  distinctColumns:Array<ColumnRef>;
+  
+  constructor(table:Table, distinctColumns:Array<ColumnRef> = []) {
+    super(table.name, table.columns, table.createdAt);
+
+    this.columnIndexMap = table.columnIndexMap
+    this.baseTable = table; 
+    this.distinctColumns = distinctColumns;
+  }
+
+  getRows(commit?:Commit):Array<Row> {
+    let distinctRowsByHash:Record<string, Row> = {};
+
+    this.baseTable.getRows(commit).forEach((row) => {
+      let distinctCombination = this.distinctColumns.map((column) => {
+        return row.cell(this.baseTable.columnIndexMap[column.column] as number).getData(commit)
+      })
+
+      let hash = JSON.stringify(distinctCombination);
+
+      if (typeof distinctRowsByHash[hash] == "undefined") {
+        distinctRowsByHash[hash] = row;
+      }
+    });
+
+    return Object.values(distinctRowsByHash);
   }
 }

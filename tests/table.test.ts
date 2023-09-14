@@ -1,6 +1,6 @@
 import Cell, { CellData } from "../storage/cell";
 import Row from "../storage/row";
-import Table, { FilteredTable, JoinedTable, LockedTable } from "../storage/table";
+import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable } from "../storage/table";
 import { columnRef, expression } from "./helpers";
 
 describe("LockedTable", () => {
@@ -310,4 +310,50 @@ describe("JoinedTable", () => {
     ])
   })
   // TODO: Make sure joined tables respect row commits
+})
+
+describe("Distinct Table", () => {
+  test("it pulls the first distinct of every combination", () => {
+    let table = new Table("Table", ["col1", "col2", "col3"]);
+
+    table.insert([
+      [1, 1, 1], // Distinct
+      [1, 1, 2],
+      [1, 2, 1], // Distinct
+      [1, 2, 2],
+      [2, 1, 1], // Distinct
+      [2, 1, 2],
+      [2, 2, 1], // Distinct
+      [2, 2, 2]
+    ]);
+
+    let distinct = new DistinctTable(table, [
+      columnRef("col1"),
+      columnRef("col2")
+    ]);
+
+    expect(distinct.getData()).toEqual([
+      [1, 1, 1], // Distinct
+      [1, 2, 1], // Distinct
+      [2, 1, 1], // Distinct
+      [2, 2, 1], // Distinct
+    ])
+  });
+
+  test("distinct without any grouping", () => {
+    // This represents an original table with an aggregate calculation added
+    let table = new Table("People", ["name", "age", "AVG(age)"]);
+
+    table.insert([
+      ["Tim", 30, 34],
+      ["Liz", 21, 34],
+      ["Russ", 51, 34]
+    ]);
+
+    let distinct = new DistinctTable(table);
+
+    expect(distinct.getData()).toEqual([
+      ["Tim", 30, 34]
+    ])
+  })
 })
