@@ -268,8 +268,7 @@ function select(ast:Select, storage:Storage):Table {
 
     if (hasAggregation == true) {
       // Aggregation
-      // TODO: Binary expressions with aggregate functions inside! 
-      table = new AggregateTable(ast.columns.map((spec) => spec.expr as ColumnRef|AggregateExpression), table);
+      table = new AggregateTable(ast.columns.map((spec) => spec.expr as ColumnRef|BinaryExpression|AggregateExpression), table);
     } else {
       // Projection 
       let projectedColumns:Array<string> = [];

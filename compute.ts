@@ -345,7 +345,7 @@ export function computeAggregateName(expr:AggregateExpression):string {
 }
 
 // TODO: Group by non-aggregate functions passed (all column refs)
-export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Array<CellData>> {
+export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|AggregateExpression>, rows:Array<Row>, columnIndexMap:ColumnIndexMap, commit?:Commit):Array<Row> {
   let aggregatorsByName:Record<string, Aggregator> = {};
 
   // Note that columns may have multiple aggregators. For instance, this is valid SQL:
@@ -374,7 +374,7 @@ export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|Aggre
 
   // Create a temporary row filled with all the base columns
   // These will be used as a data source for computing expression results. 
-  let results = new Row(new Array(columns.length).fill(null));
+  let results = new Row(new Array(columns.length).fill(null), commit);
   let resultsColumnIndexMap:Record<string, number> = {};
   columns.forEach((column, index) => {
     let columnName = stringifyExpression(column);
@@ -382,7 +382,7 @@ export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|Aggre
 
     if (column.type == "column_ref") {
       // TODO: This will need to be changed to be a specific value when we add grouping! 
-      results.cell(index).put(null);
+      // For now: Do nothing, we'll lave it null. 
     }
   })
 
@@ -397,12 +397,12 @@ export function computeAggregates(columns:Array<ColumnRef|BinaryExpression|Aggre
 
     if (column.type != "column_ref") {
       let value = compute(column, results, resultsColumnIndexMap, commit, aggregationResultsByName);
-      results.cell(index).put(value);
+      results.cell(index).put(value, commit);
     }
   })
 
   // TODO: Null out any non-aggregate columns for now. 
-  return [results.getData()];
+  return [results];
 }
 
 export function includesAggregation(expr:Expression):boolean {

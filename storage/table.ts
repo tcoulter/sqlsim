@@ -398,13 +398,13 @@ export class AggregateTable extends Table {
   }
 
   getRows(commit?:Commit):Array<Row> {
-    return computeAggregates(
+    let rows = computeAggregates(
       this.#columns,
       this.baseTable.getRows(commit),
       this.baseTable.columnIndexMap,
       commit
-    ).map((rowData) => {
-      return new Row(rowData);
-    })
+    );
+
+    return rows;
   }
 }

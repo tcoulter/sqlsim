@@ -19,11 +19,11 @@ describe("Compute", () => {
   function runAggregate(name:AvailableAggregations, expr:ColumnRef|BinaryExpression, table:Table) {
     return computeAggregates([
       aggregateFunction(name, expr)
-    ], table.getRows(), table.columnIndexMap)[0];
+    ], table.getRows(), table.columnIndexMap)[0].getData();
   }
 
   function runExpressionWithAggregates(expr:ColumnRef|BinaryExpression|AggregateExpression, table:Table) {
-    return computeAggregates([expr], table.getRows(), table.columnIndexMap)[0];
+    return computeAggregates([expr], table.getRows(), table.columnIndexMap)[0].getData();
   }
 
   test("computes simple boolean expressions with literals", () => {
