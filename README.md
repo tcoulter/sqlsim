@@ -38,7 +38,7 @@ More to come!
 - [x] SELECT _FUNC(col1 + 100)_ FROM Table (aggregation with expressions)
 - [x] SELECT _FUNC(col1) + 100_ FROM Table (aggregation as expressions)
 - [x] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY (aggregation with grouping)
-- [ ] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY ... HAVING ... (with grouping and filtering) 
+- [x] SELECT _groupCol, FUNC(col1)_ FROM Table GROUP BY ... HAVING ... (with grouping and filtering) 
  
 
 #### CREATE TABLE 

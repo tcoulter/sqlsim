@@ -61,12 +61,13 @@ interface Insert extends ASTInsert {
   table: TableSpecifier[] // The original type appears to be set to any
 };
 
-interface Select extends ASTSelect {
+interface Select extends Omit<ASTSelect, 'having'> {
   type: "select",
   from: TableSpecifier[], // This will need to change later wrt subqueries
   columns: ColumnSpecifier[] | "*" // Remove the any[]
   where: BinaryExpression | null,
-  groupby: Array<ColumnRef> | null
+  groupby: Array<ColumnRef> | null,
+  having: BinaryExpression | null // AST type is just wrong here; it gives an array when the results is not an array
 }
 
 interface Update extends ASTUpdate {
@@ -130,7 +131,10 @@ export function executeFromAST(ast:AST[], storage:Storage):Array<Commit|Table> {
         result = update(line as Update, storage);
         break;
       case "select": 
-        result = select(line as Select, storage);
+        // Note: We need the unknown because the AST type is completely wrong, and expects and
+        // array where Select.having is not an array. 
+        // TODO: Is there a way to do the override without the unknown? 
+        result = select((line as unknown) as Select, storage);
         break;
       default: 
         throw new Error("Statement '"  + line.type.toUpperCase() + "' not yet supported.");
@@ -290,6 +294,13 @@ function select(ast:Select, storage:Storage):Table {
   // TODO: Test if this works correctly *without* aggregates
   if (ast.groupby != null || hasAggregation) {
     table = new DistinctTable(table, ast.groupby || []);
+  }
+
+  if (ast.having != null) {
+    table = new FilteredTable({
+      table,
+      rowFilters: [createWhereFilter(ast.having)]
+    })
   }
 
   // Return a locked version of the table so this intsance will return 

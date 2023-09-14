@@ -8,7 +8,7 @@ let results = execute(`
   CREATE TABLE People (
     name VARCHAR(20),
     age INTEGER,
-    from_id INTEGER
+    dept INTEGER
   );
 
   CREATE TABLE Countries (
@@ -16,9 +16,9 @@ let results = execute(`
     country_name VARCHAR(20)
   );
 
-  INSERT INTO People VALUES ('Tim', 20, 1), ('Liz', 21, 2);
+  INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 20, 2), ('Bob', 21, 1);
   
-  SELECT from_id, AVG(SUM(age)) FROM People GROUP BY from_id;
+  SELECT from_id, AVG(age) FROM People GROUP BY from_id HAVING AVG(age) > 22;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));
