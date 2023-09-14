@@ -1,5 +1,6 @@
+import { firstBy } from "thenby";
 import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute";
-import { ColumnRef, createWhereFilter } from "../execute";
+import { ColumnRef, OrderBy, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
@@ -424,6 +425,7 @@ export class DistinctTable extends Table {
   baseTable:Table;
   distinctColumns:Array<ColumnRef>;
   
+  // TODO: Expand distinctColumns to support naming columns via expressions (e.g., if AS is not used)
   constructor(table:Table, distinctColumns:Array<ColumnRef> = []) {
     super(table.name, table.columns, table.createdAt);
 
@@ -448,5 +450,43 @@ export class DistinctTable extends Table {
     });
 
     return Object.values(distinctRowsByHash);
+  }
+}
+
+export class OrderedTable extends Table {
+  baseTable:Table;
+  ordering:Array<OrderBy>;
+
+  // TODO: Expand distinctColumns to support naming columns via expressions (e.g., if AS is not used)
+  constructor(table:Table, ordering:Array<OrderBy>) {
+    super(table.name, table.columns, table.createdAt);
+    this.baseTable = table;
+    this.ordering = ordering;
+
+    if (ordering.length == 0) {
+      throw new Error("OrderedTable must have at least one sort parameter");
+    } 
+  }
+
+  getRows(commit?:Commit):Array<Row> {
+    let rows = this.baseTable.getRows(commit);
+
+    let createSortFunction = (item:OrderBy) => {
+      return (row:Row) => {
+        return compute(item.expr, row, this.baseTable.columnIndexMap, commit);
+      }
+    }
+
+    let sorted = rows.sort(
+      this.ordering.reduce((fn, item, index) => {
+        // Ignore the first item in the list because we used firstBy() on it already.
+        if (index > 0) {
+          return fn.thenBy(createSortFunction(item), item.type == "DESC" ? -1 : 1)
+        }
+        return fn;
+      }, firstBy(createSortFunction(this.ordering[0]), this.ordering[0].type == "DESC" ? -1 : 1))
+    )
+
+    return sorted;
   }
 }

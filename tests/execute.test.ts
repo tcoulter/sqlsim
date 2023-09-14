@@ -589,4 +589,32 @@ describe("execute()", () => {
       [40]
     ]);
   });
+
+  test('ordering', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        dept VARCHAR(20)
+      );
+    
+      INSERT INTO People VALUES 
+        ('Tim', 30, 'Sales'),
+        ('Liz', 21, 'Sales'),
+        ('Bob', 45, 'Accounting'),
+        ('Sarah', 35, 'Accounting');
+    
+      SELECT * FROM People ORDER BY dept, age DESC;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Bob', 45, 'Accounting'],
+      ['Sarah', 35, 'Accounting'],
+      ['Tim', 30, 'Sales'],
+      ['Liz', 21, 'Sales']
+    ]);
+  });
 })

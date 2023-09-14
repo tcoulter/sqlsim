@@ -1,5 +1,5 @@
 import { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, Literal, LiteralValue} from "../compute"
-import { ColumnRef } from "../execute";
+import { ColumnRef, OrderBy } from "../execute";
 
 export function expression(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue):BinaryExpression {
   return {
@@ -15,6 +15,13 @@ export function columnRef(name:string):ColumnRef {
     type: "column_ref",
     table: null,
     column: name
+  }
+}
+
+export function orderByRef(expr:ColumnRef|BinaryExpression|AggregateExpression, type:"ASC"|"DESC" = "ASC"):OrderBy {
+  return {
+    expr: expr,
+    type: type
   }
 }
 

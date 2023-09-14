@@ -5,12 +5,13 @@ import {
   Insert_Replace as ASTInsert, 
   Select as ASTSelect,
   Update as ASTUpdate,
-  SetList as ASTSetList
+  SetList as ASTSetList,
+  OrderBy as ASTOrderBy
 } from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
-import Table, { AggregateTable, DistinctTable, FilteredTable, JoinType, JoinedTable, LockedTable, ProjectedTable, RowFilter } from "./storage/table";
+import Table, { AggregateTable, DistinctTable, FilteredTable, JoinType, JoinedTable, LockedTable, OrderedTable, ProjectedTable, RowFilter } from "./storage/table";
 import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, extractAggregateExpressions, includesAggregation, stringifyExpression } from "./compute";
 import {debug} from "debug";
 
@@ -47,6 +48,11 @@ type CreateDefinition = {
   resource: "column"
 }
 
+export interface OrderBy extends ASTOrderBy {
+  expr: ColumnRef | BinaryExpression | AggregateExpression,
+  type: "ASC" | "DESC"
+}
+
 
 // The following are the top level types used throughout the executor
 
@@ -67,7 +73,8 @@ interface Select extends Omit<ASTSelect, 'having'> {
   columns: ColumnSpecifier[] | "*" // Remove the any[]
   where: BinaryExpression | null,
   groupby: Array<ColumnRef> | null,
-  having: BinaryExpression | null // AST type is just wrong here; it gives an array when the results is not an array
+  having: BinaryExpression | null, // AST type is just wrong here; it gives an array when the results is not an array
+  orderby: Array<OrderBy> | null
 }
 
 interface Update extends ASTUpdate {
@@ -301,6 +308,10 @@ function select(ast:Select, storage:Storage):Table {
       table,
       rowFilters: [createWhereFilter(ast.having)]
     })
+  }
+
+  if (ast.orderby != null) {
+    table = new OrderedTable(table, ast.orderby as Array<OrderBy>)
   }
 
   // Return a locked version of the table so this intsance will return 

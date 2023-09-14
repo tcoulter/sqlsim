@@ -1,7 +1,7 @@
 import Cell, { CellData } from "../storage/cell";
 import Row from "../storage/row";
-import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable } from "../storage/table";
-import { columnRef, expression } from "./helpers";
+import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable, OrderedTable } from "../storage/table";
+import { columnRef, expression, orderByRef } from "./helpers";
 
 describe("LockedTable", () => {
   test("cells return data at lock time even after updates", () => {
@@ -357,3 +357,73 @@ describe("Distinct Table", () => {
     ])
   })
 })
+
+describe("Ordered Table", () => {
+  let table = new Table("People", ["name", "age", "department"]);
+
+  table.insert([
+    ["Russ", 51, "Accounting"],
+    ["Gary", 49, "Accounting"],
+    ["Tim", 30, "Sales"],
+    ["Liz", 21, "Sales"]
+  ]);
+
+  test("it returns sorted data by one column", () => {
+    let sorted = new OrderedTable(table, [
+      orderByRef(columnRef("name"))
+    ])
+
+    expect(sorted.getData()).toEqual([
+      ["Gary", 49, "Accounting"],
+      ["Liz", 21, "Sales"],
+      ["Russ", 51, "Accounting"],
+      ["Tim", 30, "Sales"]
+    ])
+  })
+
+  test("it returns sorted data by multiple columns", () => {
+    let sorted = new OrderedTable(table, [
+      orderByRef(columnRef("department")), 
+      orderByRef(columnRef("age"))
+    ])
+
+    expect(sorted.getData()).toEqual([
+      ["Gary", 49, "Accounting"],
+      ["Russ", 51, "Accounting"],
+      ["Liz", 21, "Sales"],
+      ["Tim", 30, "Sales"]
+    ])
+  })
+
+  test("it returns sorted data by multiple columns in descending order", () => {
+    let sorted = new OrderedTable(table, [
+      orderByRef(columnRef("department"), "DESC"),
+      orderByRef(columnRef("age"), "DESC")
+    ])
+
+    expect(sorted.getData()).toEqual([
+      ["Tim", 30, "Sales"],
+      ["Liz", 21, "Sales"],
+      ["Russ", 51, "Accounting"],
+      ["Gary", 49, "Accounting"]
+    ])
+  })
+
+  test("it returns sorted data with expressions ", () => {
+    // This should sort first by putting rows in two buckets: The first sort expression
+    // returns a boolean, so sorted rows should be separated by that result.
+    // Then, it'll sort by name within those buckets, the second in descending order. 
+    let sorted = new OrderedTable(table, [
+      orderByRef(expression(columnRef("age"), ">", 50)), 
+      orderByRef(columnRef("name"), "ASC")
+    ])
+
+    expect(sorted.getData()).toEqual([
+      ["Gary", 49, "Accounting"], // age <= 50
+      ["Liz", 21, "Sales"],
+      ["Tim", 30, "Sales"],
+      ["Russ", 51, "Accounting"], // age > 50
+    ])
+  })
+})
+

@@ -18,7 +18,7 @@ let results = execute(`
 
   INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 20, 2), ('Bob', 21, 1);
   
-  SELECT from_id, AVG(age) FROM People GROUP BY from_id HAVING AVG(age) > 22;
+  SELECT * FROM People ORDER BY dept, age DESC;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));
