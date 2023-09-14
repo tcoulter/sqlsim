@@ -521,6 +521,24 @@ describe("execute()", () => {
     expect(results[2]).toEqual([[202]]);
   });
 
+  test('multiple aggregates within an expression', () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 51);
+    
+      SELECT SUM(age) + AVG(age) FROM People;
+    `);
+
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([[136]]);
+  });
+
 
   // TODO: left, right and full joins (need to study parser)
 })
