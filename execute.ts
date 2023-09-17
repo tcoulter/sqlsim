@@ -170,7 +170,6 @@ function create(ast:ASTCreate, storage:Storage):Commit {
   switch(ast.keyword) {
     case "table": 
       return createTable(ast as CreateTable, storage);
-      break;
     default: 
       throw new Error("CREATE " + ast.keyword.toUpperCase() + " is not yet supported");
   }
@@ -181,13 +180,7 @@ function createTable(ast:CreateTable, storage:Storage):Commit {
   let tableName = ast.table[0].table;
   let database = getDatabase(ast.table[0].db, storage);
 
-  let columnNames:Array<string> = [];
-
-  ast.create_definitions.forEach((createDefinition:CreateDefinition) => {
-    columnNames.push(createDefinition.column.column);
-  });
-
-  database.createTable(tableName, columnNames);
+  database.createTable(tableName, ast.create_definitions.map((def:CreateDefinition) => def.column)); 
 
   return getLatestCommit();
 };

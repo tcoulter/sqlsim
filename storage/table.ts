@@ -14,11 +14,18 @@ export default class Table extends Committed {
   columnIndexMap:ColumnIndexMap = {};
   sourceDataCellCount:number;
   
-  constructor(name:string, columns:Array<string>, commit?:Commit) {
+  constructor(name:string, columns:Array<ColumnRef|string>, commit?:Commit) {
     super("table", commit);
 
     this.name = name;
-    this.columns = columns;
+    this.columns = columns.map((column) => {
+      if (typeof column == "string") {
+        return column;
+      } else {
+        return column.column;
+      }
+    });
+
     this.sourceDataCellCount = columns.length;
 
     // Note that all base tables have only indeces within their columnIndexMap. 

@@ -1,3 +1,4 @@
+import { ColumnRef } from "../execute";
 import { Commit, Committed, getLatestCommit } from "./commit";
 import Table from "./table";
 
@@ -15,7 +16,7 @@ export default class Database extends Committed {
       && this.tables[tableName].createdAt <= commit;
   }
 
-  createTable(tableName:string, columnNames:Array<string>) {
+  createTable(tableName:string, columnNames:Array<string|ColumnRef>) {
     // TODO: Support IF NOT EXISTS, etc.
     if (this.hasTable(tableName)) {
       throw new Error("Table " + tableName + " already exists in database!");
