@@ -426,14 +426,14 @@ export class AggregateTable extends Table {
     });
 
     // TODO: Is this a hack? 
-    let columnNames = table.columns.concat(aggregates.map((aggregate) => {
+    let columns = table.columns.concat(aggregates.map((aggregate) => {
       return {
         expr: aggregate,
         as: null
       }
     }));
 
-    super(table.name, columnNames, table.createdAt);
+    super(table.name, columns, table.createdAt);
 
     this.#aggregates = aggregates;
     this.baseTable = table;
