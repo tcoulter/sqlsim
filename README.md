@@ -28,7 +28,7 @@ More to come!
 - [x] SELECT ... FROM Table FULL JOIN AnotherTable ON _expression_ (full joins)
 - [ ] SELECT ... FROM Table CROSS JOIN AnotherTable (cross join)
 - [ ] SELECT ... FROM Table _AS NewName_ (AS for table names)
-- [ ] SELECT col1 _AS newname_ FROM ... (AS for column names)
+- [x] SELECT col1 _AS newname_ FROM ... (AS for column names)
 - [ ] SELECT _5 AS newname_ (selecting literals with AS for dymanic table creation)
 - [ ] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
 - [ ] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)

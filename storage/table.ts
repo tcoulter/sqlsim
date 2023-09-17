@@ -1,6 +1,6 @@
 import { firstBy } from "thenby";
 import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute";
-import { ColumnRef, OrderBy, createWhereFilter } from "../execute";
+import { Column, ColumnRef, OrderBy, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
@@ -9,32 +9,41 @@ export type ColumnIndexMap = Record<string, number|BinaryExpression|AggregateExp
 
 export default class Table extends Committed {
   name:string;
-  columns:Array<string> = [];
+  columns:Array<Column> = [];
   #rows:Array<Row> = [];
   columnIndexMap:ColumnIndexMap = {};
   sourceDataCellCount:number;
   
-  constructor(name:string, columns:Array<ColumnRef|string>, commit?:Commit) {
+  constructor(name:string, columns:Array<Column|string>, commit?:Commit) {
     super("table", commit);
 
     this.name = name;
     this.columns = columns.map((column) => {
       if (typeof column == "string") {
-        return column;
+        return {
+          expr: {
+            type: "column_ref", 
+            column: column,
+            table: null
+          },
+          as: null
+        };
       } else {
-        return column.column;
+        return column;
       }
     });
 
     this.sourceDataCellCount = columns.length;
 
     // Note that all base tables have only indeces within their columnIndexMap. 
-    this.columns.forEach((columnName, index) => {
+    this.columns.forEach((column, index) => {
+      // Note column.as should always be null here because this is table creation
+      let columnName = stringifyExpression(column.expr);
       this.columnIndexMap[columnName] = index;
     })
   }
 
-  insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>, columns:Array<string> = this.columns) {
+  insert(cellOrRowData:Array<CellData>|Array<Array<CellData>>, columns:Array<string|Column> = this.columns) {
     if (cellOrRowData.length == 0) {
       throw new Error("Insert called with no data!");
     }
@@ -58,8 +67,16 @@ export default class Table extends Committed {
         // Get the value based on its position passed
         let newValue = rowData[index];
 
+        let columnName:string; 
+        if (typeof column == "string") {
+          columnName = column;
+        } else {
+          // TODO: Enforce only Column<ColumnRef>'s were passed.
+          columnName = (column as Column<ColumnRef>).expr.column;
+        }
+
         // Now use the columnIndexMap to update the columns in the row
-        newRow.cell(this.columnIndexMap[column] as number).put(newValue, commit);
+        newRow.cell(this.columnIndexMap[columnName] as number).put(newValue, commit);
       });
 
       this.#rows.push(newRow);
@@ -103,7 +120,7 @@ export default class Table extends Committed {
     })
   }
 
-  project(columns:Array<string>) {
+  project(columns:Array<string>):ProjectedTable {
     // Lock it like it's hot
     return new ProjectedTable({
       table: this, 
@@ -111,9 +128,12 @@ export default class Table extends Committed {
         // TODO: This is a hack! We'll eventually want to refactor everything to use
         // column references instead of strings. 
         return {
-          type: "column_ref",
-          table: null,
-          column: columnName
+          expr: {
+            type: "column_ref",
+            table: null,
+            column: columnName
+          },
+          as: null
         }
       }),
     });
@@ -186,14 +206,8 @@ export class LockedTable extends Table {
     // Please note that this block does the bulk of the work for 
     // projected tables. 
     return rows.map((row) => {
-      return this.columns.map((columnName) => {
-        let columnIndex = this.columnIndexMap[columnName];
-        if (typeof columnIndex == "number") {
-          return row.cell(columnIndex).getData(commit);
-        } else {
-          // Binary expression
-          return compute(columnIndex, row, this.columnIndexMap, commit);
-        }
+      return this.columns.map((column) => {
+        return compute(column.expr, row, this.columnIndexMap, commit);
       });
     });
   }
@@ -239,7 +253,7 @@ export type ComputedColumnsList = Record<string, BinaryExpression|AggregateExpre
 
 export type ProjectedTableOptions = {
   table: Table,
-  columns: Array<ColumnRef|BinaryExpression|AggregateExpression>,
+  columns: Array<Column>,
   computedColumns?: ComputedColumnsList,
   commit?:Commit
 }
@@ -249,26 +263,42 @@ export class ProjectedTable extends LockedTable {
     super(table);
     this.columns = [];
     
-    columns.forEach((column) => {
-      if (column.type == "column_ref" && column.column == "*") {
-        this.columns.push.apply(this.columns, table.columns);
-      } else {
-        this.columns.push(stringifyExpression(column));
-      }
-    });
-  
     this.columnIndexMap = Object.assign(table.columnIndexMap);
 
-    columns.forEach((column, index) => {
-      if (column.type == "binary_expr" || column.type == "aggr_func") {
-        let name = stringifyExpression(column);
+    let currentColumnIndex = 0;
+    columns.forEach((column) => {
+      let stringified = stringifyExpression(column.expr);
+      let name = column.as || stringified;
 
-        // Only attempt to recalculate if an index for this aggregate isn't set
-        if (typeof table.columnIndexMap[name] == "undefined") {
-          this.columnIndexMap[this.columns[index]] = column;
+      // If we have a binary expression or aggregate function, AND neither
+      // has a column in the original table, then lets make the column index
+      // map point to the expression as a computed column. 
+      // Note that the Object.assign() above takes care of the case where 
+      // the expression is already in the index map.  
+      if (column.expr.type == "binary_expr" || column.expr.type == "aggr_func") {
+        // Only attempt to recalculate if an index for this expression isn't set
+        // e.g., it will be set on aggregates
+        if (typeof table.columnIndexMap[stringified] == "undefined") {
+          this.columnIndexMap[stringified] = column.expr;
         }
-      } 
-    })
+      }
+      
+      // If our column has an AS keyword, let's remap the new name onto the index
+      // for the old one. Note that stringified is the old name, and name is the
+      // new one. 
+      if (column.as != null)   {
+        this.columnIndexMap[name] = table.columnIndexMap[stringified]
+      }
+
+      // Finally, let's build our list of column names
+      if (column.expr.type == "column_ref" && column.expr.column == "*") {
+        this.columns.push.apply(this.columns, table.columns);
+        currentColumnIndex += table.columns.length;
+      } else {
+        this.columns.push(column);
+        currentColumnIndex += 1;
+      }
+    });
   }
 }
 
@@ -395,7 +425,13 @@ export class AggregateTable extends Table {
       return stringifyExpression(aggregate);
     });
 
-    let columnNames = table.columns.concat(aggregateNames);
+    // TODO: Is this a hack? 
+    let columnNames = table.columns.concat(aggregates.map((aggregate) => {
+      return {
+        expr: aggregate,
+        as: null
+      }
+    }));
 
     super(table.name, columnNames, table.createdAt);
 

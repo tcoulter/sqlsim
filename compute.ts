@@ -95,11 +95,18 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
     case "column_ref": 
       // Here, column ref will always references a named column, hence the 'as number'
       // TODO: Test this! 
-      let dataIndex:number = columnIndexMap[expr.column] as number;
+      let dataIndex = columnIndexMap[expr.column];
       if (typeof dataIndex == "undefined") {
         throw new Error("Cannot find column " + expr.column);
       }
-      let value = row.cell(dataIndex).getData(commit);
+
+      let value:CellData;
+      if (typeof dataIndex == "number") {
+        value = row.cell(dataIndex).getData(commit);
+      } else {
+        value = compute(dataIndex, row, columnIndexMap, commit);
+      }
+
       // console.log("Resolving column " + expr.column + " (index: " + dataIndex + ") to value:", value);
       return value;
     case "aggr_func": 

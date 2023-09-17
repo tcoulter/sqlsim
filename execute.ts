@@ -6,7 +6,8 @@ import {
   Select as ASTSelect,
   Update as ASTUpdate,
   SetList as ASTSetList,
-  OrderBy as ASTOrderBy
+  OrderBy as ASTOrderBy,
+  Column as ASTColumn
 } from "node-sql-parser";
 import Storage from "./storage";
 import { CellData } from "./storage/cell";
@@ -25,13 +26,13 @@ type TableSpecifier = {
   on?: BinaryExpression
 };
 
-type ColumnSpecifier = {
-  expr: ColumnRef | BinaryExpression | AggregateExpression,
-  as: string | null
-}
-
 // There's a lot to be desired from the AST types...
 // We have to fill out some details here on our own. 
+
+export interface Column<T = ColumnRef | BinaryExpression | AggregateExpression> {
+  expr: T,
+  as: string | null
+}
 
 export type ColumnRef = {
   type: "column_ref",
@@ -70,7 +71,7 @@ interface Insert extends ASTInsert {
 interface Select extends Omit<ASTSelect, 'having'> {
   type: "select",
   from: TableSpecifier[], // This will need to change later wrt subqueries
-  columns: ColumnSpecifier[] | "*" // Remove the any[]
+  columns: Column[] | "*" // Remove the any[]
   where: BinaryExpression | null,
   groupby: Array<ColumnRef> | null,
   having: BinaryExpression | null, // AST type is just wrong here; it gives an array when the results is not an array
@@ -180,7 +181,12 @@ function createTable(ast:CreateTable, storage:Storage):Commit {
   let tableName = ast.table[0].table;
   let database = getDatabase(ast.table[0].db, storage);
 
-  database.createTable(tableName, ast.create_definitions.map((def:CreateDefinition) => def.column)); 
+  database.createTable(tableName, ast.create_definitions.map((def:CreateDefinition) => {
+    return {
+      expr: def.column,
+      as: null
+    }
+  })); 
 
   return getLatestCommit();
 };
@@ -286,7 +292,7 @@ function select(ast:Select, storage:Storage):Table {
     // Projection 
     table = new ProjectedTable({
       table,
-      columns: ast.columns.map((column) => column.expr)
+      columns: ast.columns
     })
   }
 

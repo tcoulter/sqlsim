@@ -1,4 +1,4 @@
-import execute from "../execute";
+import execute, { Column, ColumnRef } from "../execute";
 import Storage from "../storage"
 import Row from "../storage/row";
 
@@ -14,9 +14,13 @@ describe("execute()", () => {
 
     let database = storage.databases['default'];
 
-    expect(database.hasTable('t')).toBe(true)
-    expect(database.tables['t'].columns.length).toBe(1);
-    expect(database.tables['t'].columns[0]).toBe('age');
+    expect(database.hasTable('t')).toBe(true);
+
+    let table = database.getTable('t');
+    let columns = table.columns as Array<Column<ColumnRef>>;
+
+    expect(columns.length).toBe(1);
+    expect(columns[0].expr.column).toBe('age');
   }); 
 
   test('simple INSERT INTO', () => {
@@ -74,9 +78,11 @@ describe("execute()", () => {
     let table = database.getTable('l');
     let rows:Array<Row> = table.getRows();
 
-    expect(table.columns.length).toBe(2);
-    expect(table.columns[0]).toBe('name');
-    expect(table.columns[1]).toBe('age');
+    let columns = table.columns as Array<Column<ColumnRef>>;
+
+    expect(columns.length).toBe(2);
+    expect(columns[0].expr.column).toBe('name');
+    expect(columns[1].expr.column).toBe('age');
 
     expect(rows.length).toBe(2);
 

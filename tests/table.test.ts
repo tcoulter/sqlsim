@@ -1,6 +1,6 @@
 import Cell, { CellData } from "../storage/cell";
 import Row from "../storage/row";
-import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable, OrderedTable } from "../storage/table";
+import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable, OrderedTable, ProjectedTable } from "../storage/table";
 import { columnRef, expression, orderByRef } from "./helpers";
 
 describe("LockedTable", () => {
@@ -198,6 +198,35 @@ describe("Table", () => {
       [ secondRow[0], secondRow[0], secondRow[0] ]
     ]);
   });
+
+  test("can rename columns via projection", () => {
+    // Note we're using the Column object here instead of simple names. 
+    let table = new Table("People", ["name", "age"]);
+    table.insert(["Tim", 30]);
+
+    let firstProjection = new ProjectedTable({
+      table, 
+      columns: [{
+        expr: expression(columnRef("age"), "+", 10),
+        as: "older_age"
+      }]
+    });
+
+    // Do the second projection using "older_age" within an expression,
+    // so we can be absolutely sure the AS projected correctly from the
+    // first projection. 
+    let secondProjection = new ProjectedTable({
+      table: firstProjection,
+      columns: [{
+        expr: expression(columnRef("older_age"), "+", 10),
+        as: "even_older_age"
+      }]
+    });
+
+    expect(secondProjection.getData()).toEqual([
+      [50]
+    ])
+  })
 })
 
 describe("JoinedTable", () => {
