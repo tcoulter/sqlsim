@@ -2,6 +2,17 @@
 
 SQL Simulator in Javascript. Performance and storage space be damned! This is an in-memory simulator meant to show how SQL works, allowing inspection of database state at any (and every!) time during execution. 
 
+### Install
+
+Clone the repository then run the following commands: 
+
+```
+$ bun install
+$ bun test
+```
+
+**Don't have bun?** You can get it [here](https://bun.sh/docs/installation). If you don't want to use bun, you can also easily use npm or yarn instead.  
+
 ### Supported SQL Flavors 
 
 - [x] MySQL
