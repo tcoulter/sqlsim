@@ -1,35 +1,53 @@
 import Cell from "../storage/cell"
+import { getLatestCommit } from "../storage/commit";
 
 describe("Cell", () => {
   test("cell can hold data at multiple commits", () => {
+    let startingCommit = getLatestCommit();
+
+    let expectedCommits = [
+      startingCommit + 1,
+      startingCommit + 2,
+      startingCommit + 3,
+      startingCommit + 4, 
+      startingCommit + 5 
+    ]
+
     let cell = new Cell(11);
 
     cell.put(12);
     cell.put(13);
     cell.put(14);
-    cell.put(15);
+    cell.put(15); 
 
     // Note that keys come back as strings
-    expect(Object.keys(cell.data)).toEqual(["1", "2", "3", "4", "5"]);
+    expect(Object.keys(cell.data).map((value) => parseInt(value))).toEqual(expectedCommits);
 
     // Expect commits to have the right commit number and value
-    expect(cell.data[1]).toBe(11);
-    expect(cell.data[2]).toBe(12);
-    expect(cell.data[3]).toBe(13);
-    expect(cell.data[4]).toBe(14);
-    expect(cell.data[5]).toBe(15);
+    expect(cell.data[expectedCommits[0]]).toBe(11);
+    expect(cell.data[expectedCommits[1]]).toBe(12);
+    expect(cell.data[expectedCommits[2]]).toBe(13);
+    expect(cell.data[expectedCommits[3]]).toBe(14);
+    expect(cell.data[expectedCommits[4]]).toBe(15);
   });
 
   test("commit management occurs across cells", () => {
-    let cellOne = new Cell(10);
-    let cellTwo = new Cell(20);
+    let startingCommit = getLatestCommit();
 
-    cellOne.put(11);
-    cellTwo.put(21);
+    let cellOne = new Cell(10); // first commit
+    let cellTwo = new Cell(20); // second commit
 
-    // Note: These commits depend on the previous test
-    expect(Object.keys(cellOne.data)).toEqual(["6", "8"]);
-    expect(Object.keys(cellTwo.data)).toEqual(["7", "9"]);
+    cellOne.put(11); // third commit
+    cellTwo.put(21); // fourth commit
+
+    expect(Object.keys(cellOne.data)).toEqual([
+      (startingCommit + 1).toString(),
+      (startingCommit + 3).toString()
+    ]);
+    expect(Object.keys(cellTwo.data)).toEqual([
+      (startingCommit + 2).toString(), 
+      (startingCommit + 4).toString()
+    ]);
   });
 
   test("get() gets the value at the latest commit", () => {
