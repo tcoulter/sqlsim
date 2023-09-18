@@ -230,7 +230,7 @@ describe("Table", () => {
 })
 
 describe("JoinedTable", () => {
-  test("handles simple joins", () => {
+  test("handles left/right/inner/full joins", () => {
     let people = new Table("People", ["name", "age", "from_id"]);
     let countries = new Table("Countries", ["country_id", "country_name"]);
     
@@ -299,6 +299,34 @@ describe("JoinedTable", () => {
       ["Russ", 47, null, null, null],
       [null, null, null, 3, "Mexico"]
     ])
+  })
+
+  test("handles cross joins", () => {
+    let tableA = new Table("A", ["one", "two"]);
+    let tableB = new Table("B", ["three", "four"]);
+
+    tableA.insert([
+      [1, 1],
+      [2, 2]
+    ]);
+
+    tableB.insert([
+      [3, 3],
+      [4, 4]
+    ])
+
+    let joinedTable = new JoinedTable({
+      type: "cross", 
+      left: tableA, 
+      right: tableB
+    });
+
+    expect(joinedTable.getData()).toEqual([
+      [1, 1, 3, 3],
+      [1, 1, 4, 4],
+      [2, 2, 3, 3],
+      [2, 2, 4, 4]
+    ]);
   })
 
   test("work the same when locked in computed tables", () => {

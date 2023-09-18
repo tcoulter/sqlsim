@@ -1,5 +1,5 @@
 import { firstBy } from "thenby";
-import compute, { AggregateExpression, BinaryExpression, SingleExpression, computeAggregateName, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute";
+import compute, { AggregateExpression, BinaryExpression, BooleanLiteral, SingleExpression, computeAggregateName, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute";
 import { Column, ColumnRef, OrderBy, createWhereFilter } from "../execute";
 import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
@@ -303,13 +303,13 @@ export class ProjectedTable extends LockedTable {
 }
 
 
-export type JoinType = "left" | "right" | "inner" | "full";
+export type JoinType = "left" | "right" | "inner" | "full" | "cross";
 
 export type JoinedTableOptions = {
   type: JoinType,
   left: Table,
   right: Table,
-  on: BinaryExpression,
+  on?: BinaryExpression,
   commit?: Commit
 }
 
@@ -329,7 +329,30 @@ export class JoinedTable extends Table {
     this.left = new LockedTable(left);
     this.right = new LockedTable(right);
 
-    this.on = on;
+    if (type == "cross") {
+      // This is a slight hack. Here, we add a statement that evaluates to true,
+      // which will cause the join to provide results just like a cross join. 
+      // It's a bit extra as we don't need a whole equality expression.
+      // But this is the easiest way to add it without a bunch of code changes.
+      // TODO: Look into simplifying this, or editing join code below to support crosses directly.
+      this.on = {
+        type: "binary_expr",
+        left: {
+          type: "bool",
+          value: true
+        },
+        operator: "=",
+        right: {
+          type: "bool",
+          value: true
+        }
+      };
+    } else {
+      if (typeof on == "undefined") {
+        throw new Error("Join of type " + type + " requires an ON expression");
+      }
+      this.on = on;
+    }
 
     this.lockedAt = commit || getLatestCommit();
 

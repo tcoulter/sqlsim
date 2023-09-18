@@ -404,13 +404,15 @@ describe("execute()", () => {
       SELECT * FROM People LEFT JOIN Countries ON from_id = country_id;
       SELECT * FROM People RIGHT JOIN Countries ON from_id = country_id;
       SELECT * FROM People FULL JOIN Countries ON from_id = country_id;
+      SELECT * FROM People CROSS JOIN Countries;
     `);
 
-    expect(results.length).toBe(8);
+    expect(results.length).toBe(9);
     expect(Array.isArray(results[4])).toBe(true);
     expect(Array.isArray(results[5])).toBe(true);
     expect(Array.isArray(results[6])).toBe(true);
     expect(Array.isArray(results[7])).toBe(true);
+    expect(Array.isArray(results[8])).toBe(true);
 
     // Inner
     expect(results[4]).toEqual([
@@ -438,6 +440,19 @@ describe("execute()", () => {
       ['Liz', 21, 2, 2, 'Canada'],
       ['Russ', 47, null, null, null],
       [null, null, null, 3, "Mexico"]
+    ]);
+
+    // Cross
+    expect(results[8]).toEqual([
+      ['Tim', 30, 1, 1, 'USA'],
+      ['Tim', 30, 1, 2, 'Canada'],
+      ['Tim', 30, 1, 3, 'Mexico'],
+      ['Liz', 21, 2, 1, 'USA'],
+      ['Liz', 21, 2, 2, 'Canada'],
+      ['Liz', 21, 2, 3, 'Mexico'],
+      ['Russ', 47, null, 1, 'USA'],
+      ['Russ', 47, null, 2, 'Canada'],
+      ['Russ', 47, null, 3, 'Mexico']
     ]);
   })
 
