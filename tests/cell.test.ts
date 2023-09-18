@@ -21,14 +21,14 @@ describe("Cell", () => {
     cell.put(15); 
 
     // Note that keys come back as strings
-    expect(Object.keys(cell.data).map((value) => parseInt(value))).toEqual(expectedCommits);
+    expect(Array.from(cell.data.keys())).toEqual(expectedCommits);
 
     // Expect commits to have the right commit number and value
-    expect(cell.data[expectedCommits[0]]).toBe(11);
-    expect(cell.data[expectedCommits[1]]).toBe(12);
-    expect(cell.data[expectedCommits[2]]).toBe(13);
-    expect(cell.data[expectedCommits[3]]).toBe(14);
-    expect(cell.data[expectedCommits[4]]).toBe(15);
+    expect(cell.data.get(expectedCommits[0])).toBe(11);
+    expect(cell.data.get(expectedCommits[1])).toBe(12);
+    expect(cell.data.get(expectedCommits[2])).toBe(13);
+    expect(cell.data.get(expectedCommits[3])).toBe(14);
+    expect(cell.data.get(expectedCommits[4])).toBe(15);
   });
 
   test("commit management occurs across cells", () => {
@@ -40,13 +40,13 @@ describe("Cell", () => {
     cellOne.put(11); // third commit
     cellTwo.put(21); // fourth commit
 
-    expect(Object.keys(cellOne.data)).toEqual([
-      (startingCommit + 1).toString(),
-      (startingCommit + 3).toString()
+    expect(Array.from(cellOne.data.keys())).toEqual([
+      startingCommit + 1,
+      startingCommit + 3
     ]);
-    expect(Object.keys(cellTwo.data)).toEqual([
-      (startingCommit + 2).toString(), 
-      (startingCommit + 4).toString()
+    expect(Array.from(cellTwo.data.keys())).toEqual([
+      startingCommit + 2, 
+      startingCommit + 4
     ]);
   });
 
@@ -65,6 +65,7 @@ describe("Cell", () => {
     // Create a new cell and add data twice, the second value will
     // be the value we eventually want returned. 
     let cellOne = new Cell(10);
+
     let expectedValue = 11;
     cellOne.put(expectedValue);
 
@@ -92,4 +93,15 @@ describe("Cell", () => {
     expect(cellOne.getData(searchCommit)).toBe(cellOne.getData(expectedCommit));
     expect(cellOne.getData(searchCommit)).toBe(expectedValue);
   });
+
+  test("cell commit keys are treated as numbers", () => {
+    // This test likely doesn't test anything now. But! There was a terrible issue
+    // earlier where commits were being coerced into strings, causing 102 to be 
+    // less than 99 when sorted (e.g., "102" < "99").
+
+    let cell = new Cell(10, 99);
+    cell.put(20, 102);
+
+    expect(cell.getData()).toEqual(20);
+  })
 })

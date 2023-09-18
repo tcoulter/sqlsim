@@ -153,7 +153,7 @@ describe("execute()", () => {
 
       SELECT * FROM People;
     `);
-    
+
     expect(results.length).toBe(4);
     expect(results[3]).toEqual([
       ['Old Person', 130],

@@ -109,11 +109,11 @@ export default function execute(sql:string, storage?:Storage) {
   let results = executeFromAST(ast as AST[], storage);
 
   let sanitizedResults:Array<Commit|Array<Array<CellData>>> = results.map((result) => {
-    if ((result instanceof Table) == false) {
+    if ((result instanceof LockedTable) == false) {
       return result as number;
     }
 
-    return (result as Table).getData();
+    return (result as LockedTable).getData();
   });
 
   return {
@@ -122,11 +122,11 @@ export default function execute(sql:string, storage?:Storage) {
   }
 };
 
-export function executeFromAST(ast:AST[], storage:Storage):Array<Commit|Table> {
-  let results:Array<Commit|Table> = [];
+export function executeFromAST(ast:AST[], storage:Storage):Array<Commit|LockedTable> {
+  let results:Array<Commit|LockedTable> = [];
 
   ast.forEach((line) => {
-    let result:Commit|Table;
+    let result:Commit|LockedTable;
 
     switch(line.type) {
       case "create": 
@@ -240,7 +240,7 @@ function update(ast:Update, storage:Storage):Commit {
   return getLatestCommit();
 }
 
-function select(ast:Select, storage:Storage):Table {
+function select(ast:Select, storage:Storage):LockedTable {
   let database = getDatabase(ast.from[0].db, storage);
 
   // Process source tables (e.g., joins) before doing anything
