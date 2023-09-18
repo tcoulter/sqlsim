@@ -38,6 +38,7 @@ More to come!
 - [x] SELECT ... FROM Table RIGHT JOIN AnotherTable ON _expression_ (right joins)
 - [x] SELECT ... FROM Table FULL JOIN AnotherTable ON _expression_ (full joins)
 - [x] SELECT ... FROM Table CROSS JOIN AnotherTable (cross join)
+- [x] SELECT Table1.col1, Table2.col2 FROM Table1 JOIN Table2 ON ... (table name prefixing)
 - [ ] SELECT ... FROM Table _AS NewName_ (AS for table names)
 - [x] SELECT col1 _AS newname_ FROM ... (AS for column names)
 - [ ] SELECT _5 AS newname_ (selecting literals with AS for dymanic table creation)
