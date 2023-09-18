@@ -638,4 +638,34 @@ describe("execute()", () => {
       ['Liz', 21, 'Sales']
     ]);
   });
+
+  test("can disambiguate ambiguous columns using table name prefixes within projection and ordering", () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+
+      CREATE TABLE OtherPeople (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21);
+      INSERT INTO OtherPeople VALUES ('Russ', 51), ('Gary', 49);
+    
+      SELECT OtherPeople.name, People.name FROM People CROSS JOIN OtherPeople ORDER BY OtherPeople.name;
+    `);
+  
+    expect(results.length).toBe(5);
+    expect(Array.isArray(results[4])).toBe(true);
+
+    expect(results[4]).toEqual([
+      ['Gary', 'Tim'],
+      ['Gary', 'Liz'],
+      ['Russ', 'Tim'],
+      ['Russ', 'Liz']
+    ]);
+  })
+
 })

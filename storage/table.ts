@@ -30,6 +30,17 @@ export default class Table extends Committed {
           as: null
         };
       } else {
+        if (column.expr.type == "column_ref" && column.expr.table == null) {
+          return {
+            expr: {
+              type: "column_ref",
+              column: (column.expr as ColumnRef).column,
+              table: tableName
+            }, 
+            as: null
+          }
+        }
+
         return column;
       }
     });
@@ -225,12 +236,8 @@ export class FilteredTable extends LockedTable {
   rowFilters:Array<RowFilter>;
 
   constructor({table, rowFilters = [], commit}:FilteredTableOptions) {
-    super(table);
-
-    this.baseTable = table;
-
+    super(table, commit);
     this.rowFilters = rowFilters;
-    this.lockedAt = commit || getLatestCommit();
   }
 
   getRows(commit?:Commit):Array<Row> {
@@ -249,12 +256,9 @@ export class FilteredTable extends LockedTable {
   }
 }
 
-export type ComputedColumnsList = Record<string, BinaryExpression|AggregateExpression>;
-
 export type ProjectedTableOptions = {
   table: Table,
   columns: Array<Column>,
-  computedColumns?: ComputedColumnsList,
   commit?:Commit
 }
 
@@ -330,7 +334,7 @@ export class JoinedTable extends Table {
 
   constructor({type, left, right, on, commit}:JoinedTableOptions) {
     let columns = left.columns.concat(right.columns);
-    super("Joined Table", columns, left.createdAt);
+    super(left.name + " x " + right.name, columns, left.createdAt);
     this.type = type;
 
     this.left = new LockedTable(left);
@@ -527,14 +531,12 @@ export class DistinctTable extends Table {
   }
 }
 
-export class OrderedTable extends Table {
-  baseTable:Table;
+export class OrderedTable extends LockedTable {
   ordering:Array<OrderBy>;
 
   // TODO: Expand distinctColumns to support naming columns via expressions (e.g., if AS is not used)
   constructor(table:Table, ordering:Array<OrderBy>) {
-    super(table.name, table.columns, table.createdAt);
-    this.baseTable = table;
+    super(table);
     this.ordering = ordering;
 
     if (ordering.length == 0) {
@@ -543,7 +545,7 @@ export class OrderedTable extends Table {
   }
 
   getRows(commit?:Commit):Array<Row> {
-    let rows = this.baseTable.getRows(commit);
+    let rows = super.getRows(commit);
 
     let createSortFunction = (item:OrderBy) => {
       return (row:Row) => {

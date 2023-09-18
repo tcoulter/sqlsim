@@ -109,7 +109,7 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
         value = compute(dataIndex, row, columnIndexMap, commit);
       }
 
-      // console.log("Resolving column " + expr.column + " (index: " + dataIndex + ") to value:", value);
+      //console.log("Resolving column " + JSON.stringify(expr) + " (index: " + dataIndex + ") to value:", value);
       return value;
     case "aggr_func": 
       return row.cell(columnIndexMap.getColumnMapping({
