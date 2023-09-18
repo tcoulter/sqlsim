@@ -411,7 +411,8 @@ describe("JoinedTable", () => {
       right: b
     })
 
-    // We need a projected table so we can select "name" and force the ambiguity
+    // We need a projected table so we can select "A.name" and "B.name" 
+    // to route around the ambiguity.
     let projected = new ProjectedTable({
       table: joined,
       columns: [{
