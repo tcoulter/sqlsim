@@ -1,6 +1,6 @@
 import searchClosest from "../helpers/searchclosest";
 
-describe('serachcloest()', () => {
+describe('searchclosest()', () => {
   test('will return the closest values *less than* the target given', () => {
     
     let input = [1, 23, 45, 67, 94, 122];
