@@ -367,6 +367,69 @@ describe("JoinedTable", () => {
     ])
   })
   // TODO: Make sure joined tables respect row commits
+  
+  test("maintain column ambiguity (columns with the same name)", () => {
+    let a = new Table("A", ["name"]);
+    let b = new Table("B", ["name"]);
+
+    a.insert([["Tim"], ["Liz"]]);
+    b.insert([["Gary"], ["Russ"]]);
+
+    let joined = new JoinedTable({
+      type: "cross",
+      left: a,
+      right: b
+    })
+
+    // We need a projected table so we can select "name" and force the ambiguity
+    let projected = new ProjectedTable({
+      table: joined,
+      columns: [{
+        expr: columnRef("name"),
+        as: null
+      }]
+    })
+
+    try {
+      projected.getData();
+      throw new Error("Test failed; no error was thrown from getData()")
+    } catch (e) {
+      expect(e.toString()).toEqual("Error: Column 'name' is ambiguous.")
+    }
+  })
+
+  test("maintain column *dis*ambiguity via table name prefixes", () => {
+    let a = new Table("A", ["name"]);
+    let b = new Table("B", ["name"]);
+
+    a.insert([["Tim"], ["Liz"]]);
+    b.insert([["Gary"], ["Russ"]]);
+
+    let joined = new JoinedTable({
+      type: "cross",
+      left: a,
+      right: b
+    })
+
+    // We need a projected table so we can select "name" and force the ambiguity
+    let projected = new ProjectedTable({
+      table: joined,
+      columns: [{
+        expr: columnRef("A", "name"),
+        as: null
+      }, {
+        expr: columnRef("B", "name"),
+        as: null
+      }]
+    })
+
+    expect(projected.getData()).toEqual([
+      ["Tim", "Gary"],
+      ["Tim", "Russ"],
+      ["Liz", "Gary"],
+      ["Liz", "Russ"]
+    ])
+  })
 })
 
 describe("Distinct Table", () => {

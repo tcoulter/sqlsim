@@ -36,7 +36,7 @@ export interface Column<T = ColumnRef | BinaryExpression | AggregateExpression> 
 
 export type ColumnRef = {
   type: "column_ref",
-  table: null, // TODO: Figure this one out
+  table: string|null, // TODO: Figure this one out
   column: string // column name
 }
 

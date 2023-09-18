@@ -3,7 +3,7 @@ import { ColumnRef } from "./execute";
 import { CellData } from "./storage/cell";
 import { Commit } from "./storage/commit";
 import Row, { JoinedRow } from "./storage/row";
-import { ColumnIndexMap } from "./storage/table";
+import ColumnIndexMap from "./storage/columnindexmap";
 
 // Damn parser doesn't give us an Expression type
 
@@ -81,7 +81,7 @@ export function stringifyExpression(expr:Expression, depth:number = 0):string {
   }
 }
 
-export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = {}, commit?:Commit):ComputationResult {
+export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), commit?:Commit):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
       let left = compute(expr.left, row, columnIndexMap, commit);
@@ -93,9 +93,11 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
     case "null": 
       return expr.value;
     case "column_ref": 
-      // Here, column ref will always references a named column, hence the 'as number'
-      // TODO: Test this! 
-      let dataIndex = columnIndexMap[expr.column];
+      let dataIndex = columnIndexMap.getColumnMapping({
+        expr,
+        as: null
+      });
+
       if (typeof dataIndex == "undefined") {
         throw new Error("Cannot find column " + expr.column);
       }
@@ -110,8 +112,10 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
       // console.log("Resolving column " + expr.column + " (index: " + dataIndex + ") to value:", value);
       return value;
     case "aggr_func": 
-      let name = computeAggregateName(expr);
-      return row.cell(columnIndexMap[name] as number).getData(commit);
+      return row.cell(columnIndexMap.getColumnMapping({
+        expr,
+        as: null
+      }) as number).getData(commit);
     default: 
       throw new Error("Expression type " + expr.type + " not yet supported");
   }
@@ -370,7 +374,10 @@ export function computeAggregates({aggregates, rows, columnIndexMap, groupColumn
   rows.forEach((row) => {
     let groupCombination = groupColumns.map((column) => {
       // TODO: Can this point to a binary expression? 
-      return row.cell(columnIndexMap[column.column] as number).getData(commit)
+      return row.cell(columnIndexMap.getColumnMapping({
+        expr: column,
+        as: null
+      }) as number).getData(commit)
     })
 
     // Use JSON.stringify() as our hashing function. Is is slow? Probably.
@@ -402,7 +409,10 @@ export function computeAggregates({aggregates, rows, columnIndexMap, groupColumn
   return rows.map((sourceRow) => {
     let groupCombination = groupColumns.map((column) => {
       // TODO: Can this point to a binary expression? 
-      return sourceRow.cell(columnIndexMap[column.column] as number).getData(commit)
+      return sourceRow.cell(columnIndexMap.getColumnMapping({
+        expr: column,
+        as: null
+      }) as number).getData(commit)
     })
 
     let hash = JSON.stringify(groupCombination);

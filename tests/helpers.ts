@@ -10,11 +10,19 @@ export function expression(left:Expression|LiteralValue, operator: BinaryExpress
   }
 }
 
-export function columnRef(name:string):ColumnRef {
+export function columnRef(tableOrColumnName:string, columnName?:string):ColumnRef {
+  let tableName:string|null = null;
+
+  if (typeof columnName != "undefined") {
+    tableName = tableOrColumnName;
+  } else {
+    columnName = tableOrColumnName;
+  }
+
   return {
     type: "column_ref",
-    table: null,
-    column: name
+    table: tableName,
+    column: columnName as string
   }
 }
 
