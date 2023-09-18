@@ -416,19 +416,19 @@ describe("JoinedTable", () => {
     let projected = new ProjectedTable({
       table: joined,
       columns: [{
-        expr: columnRef("A", "name"),
+        expr: columnRef("B", "name"),
         as: null
       }, {
-        expr: columnRef("B", "name"),
+        expr: columnRef("A", "name"),
         as: null
       }]
     })
 
     expect(projected.getData()).toEqual([
-      ["Tim", "Gary"],
-      ["Tim", "Russ"],
-      ["Liz", "Gary"],
-      ["Liz", "Russ"]
+      ["Gary", "Tim"],
+      ["Russ", "Tim"],
+      ["Gary", "Liz"],
+      ["Russ", "Liz"]
     ])
   })
 })
