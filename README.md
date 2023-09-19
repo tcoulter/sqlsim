@@ -85,9 +85,13 @@ More to come!
 - [x] _OR_ operator
 - [ ] _IS_ operator
 - [ ] _IS NOT_ operator
-- [ ] _IN_ operator
-- [ ] _NOT IN_ operator
+- [x] _IN (...expression list...)_ operator
+- [ ] _IN (...subquery...)_ operator
+- [x] _NOT IN (...expression list...)_ operator
+- [ ] _NOT IN (...subquery...)_ operator
 - [x] _LIKE_ operator
+- [ ] _ANY_ operator
+- [ ] _SOME_ operator
 
 #### Aggregation Functions 
 

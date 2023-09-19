@@ -1,7 +1,7 @@
 import compute, { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute"
 import { ColumnRef } from "../execute";
 import Table, { AggregateTable } from "../storage/table";
-import { aggregateFunction, columnRef, expression } from "./helpers";
+import { aggregateFunction, columnRef, expression, expressionList } from "./helpers";
 
 describe("Compute", () => {
   function run(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue) {
@@ -162,6 +162,40 @@ describe("Compute", () => {
       ["Liz", 21, "Sales", 25.5],
       ["Bob", 45, "Accounting", 40],
       ["Sarah", 35, "Accounting", 40]
+    ]);
+  })
+
+  test("IN operator", () => {
+    let table = new Table("People", ["name", "age", "dept"]);
+    table.insert([
+      ["Tim", 30, "Sales"],
+      ["Liz", 21, "Sales"],
+      ["Bob", 45, "Accounting"],
+      ["Sarah", 35, "Accounting"]
+    ]);
+
+    expect(runTable(columnRef("age"), "IN", expressionList([30, 35]), table)).toEqual([
+      true,
+      false,
+      false,
+      true
+    ]);
+  })
+
+  test("NOT IN operator", () => {
+    let table = new Table("People", ["name", "age", "dept"]);
+    table.insert([
+      ["Tim", 30, "Sales"],
+      ["Liz", 21, "Sales"],
+      ["Bob", 45, "Accounting"],
+      ["Sarah", 35, "Accounting"]
+    ]);
+
+    expect(runTable(columnRef("age"), "NOT IN", expressionList([30, 35]), table)).toEqual([
+      false,
+      true,
+      true,
+      false
     ]);
   })
 })

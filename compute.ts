@@ -21,7 +21,7 @@ export type BinaryExpression = {
 
 export type ExpressionList = {
   type: "expr_list", 
-  value: Array<BinaryExpression|Literal>
+  value: Array<SingleExpression>
 };
 
 export type NumberLiteral = {
@@ -88,8 +88,12 @@ export function stringifyExpression(expr:Expression, depth:number = 0, royalColu
 export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), commit?:Commit):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
-      let left = compute(expr.left, row, columnIndexMap, commit);
-      let right = compute(expr.right, row, columnIndexMap, commit);
+      let left = expr.left.type == "expr_list" 
+        ? computeExpressionList(expr.left, row, columnIndexMap, commit) 
+        : compute(expr.left, row, columnIndexMap, commit);
+      let right = expr.right.type == "expr_list"
+        ? computeExpressionList(expr.right, row, columnIndexMap, commit) 
+        : compute(expr.right, row, columnIndexMap, commit);
       return computeBinaryOperation(left, right, expr.operator);
     case "number":
     case "single_quote_string": 
@@ -110,7 +114,7 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
       if (typeof dataIndex == "number") {
         value = row.cell(dataIndex).getData(commit);
       } else {
-        value = compute(dataIndex, row, columnIndexMap, commit);
+        value = compute(dataIndex, row, columnIndexMap, commit) as LiteralValue;
       }
 
       //console.log("Resolving column " + JSON.stringify(expr) + " (index: " + dataIndex + ") to value:", value);
@@ -120,12 +124,21 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
         expr,
         as: null
       }) as number).getData(commit);
+    case "expr_list": 
+      throw new Error("Unexpected Error: Expression lists should only be allowed in binary expressions (and are handled there)")
     default: 
-      throw new Error("Expression type " + expr.type + " not yet supported");
+      // Used 'any' because Typescript doesn't think this will ever run. But it's good as a safeguard. 
+      throw new Error("Expression type " + (expr as any).type + " not yet supported");
   }
 }
 
-function computeBinaryOperation(left:ComputationResult, right:ComputationResult, operator:BinaryExpression['operator']):ComputationResult {
+function computeExpressionList(expr:ExpressionList, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), commit?:Commit):Array<ComputationResult> {
+  return expr.value.map((value) => {
+    return compute(value, row, columnIndexMap, commit) as LiteralValue;
+  })
+}
+
+function computeBinaryOperation(left:ComputationResult|Array<ComputationResult>, right:ComputationResult|Array<ComputationResult>, operator:BinaryExpression['operator']):ComputationResult {
   switch(operator) {
     case "+":
       enforceNumber(left);
@@ -184,28 +197,45 @@ function computeBinaryOperation(left:ComputationResult, right:ComputationResult,
       let regex = convertLIKEPatternToRegex(right as string);
       return regex.test(left as string);
     case "IN":
+      enforceArray(right);
+      right = right as Array<ComputationResult>;
+      let found = false;
+      for (var i = 0; i < right.length; i++) {
+        // double bang to enforce a boolean
+        found = !!computeBinaryOperation(left, right[i], "=");
+        if (found == true) {
+          break;
+        }
+      }
+      return found;
     case "NOT IN":
-      throw new Error("IN / NOT IN not yet supported");
+      return computeBinaryOperation(left, right, "IN") == false;
     default: 
       throw new Error("Unexpected expression operator " + operator + "; operator not yet supported");
   }
 }
 
-function enforceNumber(value:ComputationResult) {
+function enforceNumber(value:ComputationResult|Array<ComputationResult>) {
   if (typeof value != "number") {
     throw new Error("Expected number type but got " + typeof value);
   }
 }
 
-function enforceBoolean(value:ComputationResult) {
+function enforceBoolean(value:ComputationResult|Array<ComputationResult>) {
   if (typeof value != "boolean") {
     throw new Error("Expected boolean type but got " + typeof value);
   }
 }
 
-function enforceString(value:ComputationResult) {
+function enforceString(value:ComputationResult|Array<ComputationResult>) {
   if (typeof value != "string") {
     throw new Error("Expected string type but got " + typeof value);
+  }
+}
+
+function enforceArray(value:ComputationResult|Array<ComputationResult>) {
+  if (Array.isArray(value) == false) {
+    throw new Error("Expected list/tuple but got " + typeof value);
   }
 }
 

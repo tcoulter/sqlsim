@@ -783,4 +783,34 @@ describe("execute()", () => {
       expect(e.toString()).toEqual("Error: Cannot find column 'P.country_id'");
     }
   });
+
+  test("IN/NOT IN operator with expression lists", () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+      
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 51);
+      
+      SELECT * FROM People WHERE age IN (30, 21);
+
+      -- Throw in a basic expression to make sure we're actually processing them. 
+      SELECT * FROM People WHERE age IN (25-4,55-4);
+    `);
+
+    expect(results.length).toBe(4);
+    expect(Array.isArray(results[2])).toBe(true);
+    expect(Array.isArray(results[3])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim', 30],
+      ['Liz', 21]
+    ]);
+
+    expect(results[3]).toEqual([
+      ['Liz', 21],
+      ['Russ', 51]
+    ]);
+  })
 });

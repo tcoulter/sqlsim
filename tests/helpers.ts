@@ -1,4 +1,4 @@
-import { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, Literal, LiteralValue} from "../compute"
+import { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, ExpressionList, Literal, LiteralValue} from "../compute"
 import { ColumnRef, OrderBy } from "../execute";
 
 export function expression(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue):BinaryExpression {
@@ -7,6 +7,23 @@ export function expression(left:Expression|LiteralValue, operator: BinaryExpress
     left: typeof left == "object" ? left as Expression: literal(left),
     right: typeof right == "object" ? right as Expression: literal(right),
     operator: operator
+  }
+}
+
+export function expressionList(expressions:Array<BinaryExpression|LiteralValue>):ExpressionList {
+  return {
+    type: "expr_list",
+    value: expressions.map((valueOrExpression) => {
+      if (valueOrExpression == null) {
+        return literal(valueOrExpression);
+      }
+
+      if (typeof valueOrExpression == "object") {
+        return valueOrExpression;
+      } else {
+        return literal(valueOrExpression);
+      }
+    })
   }
 }
 
