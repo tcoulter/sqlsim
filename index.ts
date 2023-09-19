@@ -8,7 +8,7 @@ let results = execute(`
   CREATE TABLE People (
     name VARCHAR(20),
     age INTEGER,
-    dept INTEGER
+    country_id INTEGER
   );
 
   CREATE TABLE Countries (
@@ -16,9 +16,11 @@ let results = execute(`
     country_name VARCHAR(20)
   );
 
-  INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 20, 2), ('Bob', 21, 1);
+  INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 20, 3);
+  INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada'), (3, 'Mexico');
   
-  SELECT * FROM People ORDER BY dept, age DESC;
+  SELECT * FROM People
+    JOIN (SELECT * FROM Countries) as C ON People.country_id = C.country_id;
 `, storage);
 
 //console.log(JSON.stringify(results, null, 2));

@@ -1,4 +1,4 @@
-import { Column, ColumnRef } from "../execute";
+import { Column } from "../execute";
 import { Commit, Committed, getLatestCommit } from "./commit";
 import Table from "./table";
 
@@ -19,7 +19,7 @@ export default class Database extends Committed {
   createTable(tableName:string, columns:Array<string|Column>) {
     // TODO: Support IF NOT EXISTS, etc.
     if (this.hasTable(tableName)) {
-      throw new Error("Table " + tableName + " already exists in database!");
+      throw new Error("Table '" + tableName + "' already exists in database!");
     }
 
     this.tables[tableName] = new Table(tableName, columns);

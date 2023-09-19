@@ -56,11 +56,7 @@ export default class ColumnIndexMap {
     this.tableColumnNameMap = {};
 
     if (typeof existingMap != "undefined") {
-      this.columnNameMap = ColumnIndexMap.copyRecords(existingMap.columnNameMap);
-
-      Object.entries(existingMap.tableColumnNameMap).forEach(([tableName, columnRecord]) => {
-        this.tableColumnNameMap[tableName] = ColumnIndexMap.copyRecords(columnRecord);
-      });
+      this.merge(existingMap);
     } 
   }
 
@@ -69,10 +65,12 @@ export default class ColumnIndexMap {
     let columnNameAlias:string|null = column.as;
 
     // Add column names and prefixes, 
-    this.#addToColumnNameMap(columnName, index);
+    
     
     if (columnNameAlias != null) {
       this.#addToColumnNameMap(columnNameAlias, index);
+    } else {
+      this.#addToColumnNameMap(columnName, index);
     }
 
     if (column.expr.type == "column_ref") {
@@ -105,6 +103,7 @@ export default class ColumnIndexMap {
 
   mutate(fn:(tableName:string|null, columnName:string, value:AllowedColumnMapping) => AllowedColumnMapping) {
     Object.entries(this.columnNameMap).forEach(([columnName, mappings]) => {
+      
       let newMappings = new UniqueMappingManager();
       mappings.getAll().forEach((value) => newMappings.add(fn(null, columnName, value)));
       this.columnNameMap[columnName] = newMappings;
@@ -119,11 +118,15 @@ export default class ColumnIndexMap {
     })
   }
 
-  merge(otherMap:ColumnIndexMap) {
+  merge(otherMap:ColumnIndexMap, ignoreIfMappingPresent = false) {
     Object.entries(otherMap.columnNameMap).forEach(([columnName, mappings]) => {
       let existingMappings:UniqueMappingManager;
 
       if (typeof this.columnNameMap[columnName] != "undefined") {
+        if (ignoreIfMappingPresent == true) {
+          return;
+        }
+
         existingMappings = this.columnNameMap[columnName];
       } else {
         existingMappings = new UniqueMappingManager();
@@ -143,6 +146,10 @@ export default class ColumnIndexMap {
         }
   
         if (typeof this.tableColumnNameMap[tableName][columnName] != "undefined") {
+          if (ignoreIfMappingPresent == true) {
+            return;
+          }
+
           existingMappings = this.tableColumnNameMap[tableName][columnName];
         } else {
           existingMappings = new UniqueMappingManager();
@@ -215,28 +222,12 @@ export default class ColumnIndexMap {
     this.tableColumnNameMap[tableName][columnName].add(index);
   }
 
-  static merge(mapOne:ColumnIndexMap, mapTwo:ColumnIndexMap) {
+  static merge(mapOne:ColumnIndexMap, mapTwo:ColumnIndexMap, ignoreIfMappingPresent = false) {
     let fullMap = new ColumnIndexMap(); 
 
-    fullMap.merge(mapOne);
-    fullMap.merge(mapTwo);
+    fullMap.merge(mapOne, ignoreIfMappingPresent);
+    fullMap.merge(mapTwo, ignoreIfMappingPresent);
 
     return fullMap;
-  }
-
-  static copyRecords(record:Record<string, UniqueMappingManager>):Record<string, UniqueMappingManager> {
-    let copy:Record<string, UniqueMappingManager> = {}
-
-    Object.entries(record).forEach(([key, mappings]) => {
-      let newMappings = new UniqueMappingManager();
-
-      mappings.getAll().forEach((value) => {
-        newMappings.add(value);
-      })
-
-      copy[key] = newMappings;
-    });
-
-    return copy;
   }
 }

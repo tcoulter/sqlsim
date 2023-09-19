@@ -668,4 +668,119 @@ describe("execute()", () => {
     ]);
   })
 
-})
+  test("can process subqueries in FROM clause", () => {
+    // Note that we're processing a subquery in the first from item as well
+    // as a join. These are slightly different processes in the code. 
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        country_id INTEGER
+      );
+    
+      CREATE TABLE Countries (
+        country_id INTEGER,
+        country_name VARCHAR(20)
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 20, 3);
+      INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada'), (3, 'Mexico');
+      
+      SELECT P.name, C.country_name 
+        FROM (SELECT name, country_id FROM People) AS P
+        JOIN (SELECT country_name, country_id FROM Countries) AS C ON P.country_id = C.country_id;
+    `);
+  
+    expect(results.length).toBe(5);
+    expect(Array.isArray(results[4])).toBe(true);
+
+    expect(results[4]).toEqual([
+      ['Tim', 'USA'],
+      ['Liz', 'Canada'],
+      ['Russ', 'Mexico']
+    ]);
+  })
+
+  test("can process subqueries in FROM clause (this time with same tables in subqueries)", () => {
+    // Note that we're processing a subquery in the first from item as well
+    // as a join. These are slightly different processes in the code. 
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        country_id INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 51, 3);
+      
+      SELECT P1.name, P2.age 
+        FROM (SELECT name, country_id FROM People) AS P1
+        JOIN (SELECT age, country_id FROM People) AS P2 ON P1.country_id = P2.country_id;
+    `);
+  
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim', 30],
+      ['Liz', 21],
+      ['Russ', 51]
+    ]);
+  });
+
+  test("can process subqueries in FROM clause (this time with same tables in subqueries)", () => {
+    // Note that we're processing a subquery in the first from item as well
+    // as a join. These are slightly different processes in the code. 
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        country_id INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 51, 3);
+      
+      SELECT P1.name, P2.age 
+        FROM (SELECT name, country_id FROM People) AS P1
+        JOIN (SELECT age, country_id FROM People) AS P2 ON P1.country_id = P2.country_id;
+    `);
+  
+    expect(results.length).toBe(3);
+    expect(Array.isArray(results[2])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim', 30],
+      ['Liz', 21],
+      ['Russ', 51]
+    ]);
+  });
+
+  test("should error when ON clause of JOIN references columns not available in SELECT subqueries", () => {
+    try {
+      let {results, storage} = execute(`
+        CREATE TABLE People (
+          name VARCHAR(20),
+          age INTEGER,
+          country_id INTEGER
+        );
+        
+        CREATE TABLE Countries (
+          country_id INTEGER,
+          country_name VARCHAR(20)
+        );
+        
+        INSERT INTO People VALUES ('Tim', 30, 1), ('Liz', 21, 2), ('Russ', 51, 3);
+        INSERT INTO Countries VALUES (1, 'USA'), (2, 'Canada'), (3, 'Mexico');
+        
+        -- The next line is bad code
+        SELECT * 
+          FROM (SELECT name FROM People) AS P
+          JOIN (SELECT country_name FROM Countries) AS C ON P.country_id = C.country_id;
+      `);
+
+      throw new Error("Expected error to be thrown, but none was");
+    } catch(e) {
+      expect(e.toString()).toEqual("Error: Cannot find column 'P.country_id'");
+    }
+  });
+});

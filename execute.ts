@@ -13,7 +13,7 @@ import Storage from "./storage";
 import { CellData } from "./storage/cell";
 import { Commit, getLatestCommit } from "./storage/commit";
 import Table, { AggregateTable, DistinctTable, FilteredTable, JoinType, JoinedTable, LockedTable, OrderedTable, ProjectedTable, RowFilter } from "./storage/table";
-import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, extractAggregateExpressions, includesAggregation, stringifyExpression } from "./compute";
+import compute, { AggregateExpression, BinaryExpression, Expression, Literal, SingleExpression, extractAggregateExpressions, includesAggregation, setTableNamePrefixesWhereNull, stringifyExpression } from "./compute";
 import {debug} from "debug";
 
 const debugAst = debug('ast');
@@ -21,9 +21,12 @@ const debugAst = debug('ast');
 type TableSpecifier = {
   db: string,
   table: string, 
-  as: string,
+  as: string|null,
   join?: "INNER JOIN",
-  on?: BinaryExpression
+  on?: BinaryExpression,
+  expr?: {
+    ast: Select
+  }
 };
 
 // There's a lot to be desired from the AST types...
@@ -163,8 +166,22 @@ function getDatabase(name:string, storage:Storage) {
 }
 
 function getTable(specifier:TableSpecifier, storage:Storage) {
-  let database = getDatabase(specifier.db, storage);
-  return database.getTable(specifier.table);
+  let table:Table;
+
+  if (isFromSubquery(specifier)) {
+    // We're gonna assume the subquery's always a SELECT. Can it be anything different? 
+    table = select((specifier.expr as NonNullable<TableSpecifier['expr']>).ast as Select, storage);
+  } else {
+    let database = getDatabase(specifier.db, storage);
+    table = database.getTable(specifier.table);
+  }
+
+  if (specifier.as != null) {
+    table = new LockedTable(table);
+    (table as LockedTable).alias(specifier.as);
+  }
+
+  return table;
 }
 
 function create(ast:ASTCreate, storage:Storage):Commit {
@@ -241,19 +258,19 @@ function update(ast:Update, storage:Storage):Commit {
 }
 
 function select(ast:Select, storage:Storage):LockedTable {
-  let database = getDatabase(ast.from[0].db, storage);
+  let table = getTable(ast.from[0], storage);
 
   // Process source tables (e.g., joins) before doing anything
-  let table = database.getTable(ast.from[0].table);
-
   for (var fromIndex = 1; fromIndex < ast.from.length; fromIndex++) {
     let newFromDefinition = ast.from[fromIndex];
 
     if (typeof newFromDefinition.join != "undefined") {
+      let right = getTable(newFromDefinition, storage);
+
       table = new JoinedTable({
         type: newFromDefinition.join.toLowerCase().replace("join", "").trim() as JoinType,
         left: table,
-        right: database.getTable(newFromDefinition.table),
+        right: right,
         on: newFromDefinition.on as BinaryExpression
       });
     }
@@ -289,10 +306,15 @@ function select(ast:Select, storage:Storage):LockedTable {
       table = new AggregateTable(aggregates, table, ast.groupby || []);
     }
 
+    let projectedColumns = ast.columns;
+    projectedColumns.forEach((column) => {
+      setTableNamePrefixesWhereNull(table.name, column.expr);
+    });
+
     // Projection 
     table = new ProjectedTable({
       table,
-      columns: ast.columns
+      columns: projectedColumns
     })
   }
 
@@ -323,6 +345,10 @@ export function createWhereFilter(expr:BinaryExpression):RowFilter {
     // TODO(?): Notice the !!. For now, lets not worry about a computation result
     // in the WHERE clause returning something other than a boolean. 
     // Let's assume that the parser takes care of that for us. 
-    return !!compute(expr, filteredRow, filtredTable.columnIndexMap, filtredTable.lockedAt);
+    return !!compute(expr, filteredRow, filtredTable.sourceMap(), filtredTable.lockedAt);
   }
+}
+
+function isFromSubquery(fromDefinition:TableSpecifier) {
+  return typeof fromDefinition.expr != "undefined";
 }

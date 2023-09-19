@@ -12,7 +12,7 @@ describe("Compute", () => {
   function runTable(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue, table:Table) {
     let expr = expression(left, operator, right);
     return table.getRows().map((row) => {
-      return compute(expr, row, table.columnIndexMap);
+      return compute(expr, row, table.sourceMap());
     });
   }
 
@@ -20,7 +20,7 @@ describe("Compute", () => {
     return computeAggregates({
       aggregates:  [aggregateFunction(name, expr)],
       rows: table.getRows(),
-      columnIndexMap: table.columnIndexMap,
+      columnIndexMap: table.sourceMap(),
       groupColumns: groupBy
     }).map((row) => row.getData());
   }

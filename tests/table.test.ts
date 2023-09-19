@@ -1,3 +1,4 @@
+import { stringifyExpression } from "../compute";
 import Cell, { CellData } from "../storage/cell";
 import Row from "../storage/row";
 import Table, { DistinctTable, FilteredTable, JoinedTable, LockedTable, OrderedTable, ProjectedTable } from "../storage/table";
@@ -223,6 +224,8 @@ describe("Table", () => {
       }]
     });
 
+    firstProjection.getData();
+
     expect(secondProjection.getData()).toEqual([
       [50]
     ])
@@ -382,16 +385,15 @@ describe("JoinedTable", () => {
     })
 
     // We need a projected table so we can select "name" and force the ambiguity
-    let projected = new ProjectedTable({
-      table: joined,
-      columns: [{
-        expr: columnRef("name"),
-        as: null
-      }]
-    })
-
     try {
-      projected.getData();
+      let projected = new ProjectedTable({
+        table: joined,
+        columns: [{
+          expr: columnRef("name"),
+          as: null
+        }]
+      })
+
       throw new Error("Test failed; no error was thrown from getData()")
     } catch (e) {
       expect(e.toString()).toEqual("Error: Column 'name' is ambiguous.")
@@ -548,3 +550,30 @@ describe("Ordered Table", () => {
   })
 })
 
+describe("ProjectedTable", () => {
+  test("maintains a column index map of only the data it manages, but can access old data as needed", () => {
+    let table = new Table("A", ["name", "age"]);
+    table.insert([
+      ["Tim", 30],
+      ["Liz", 21]
+    ]);
+
+    let projection = new ProjectedTable({
+      table,
+      columns: [
+        {
+          expr: expression(columnRef("age"), "+", 10),
+          as: "older_age"
+        }
+      ]
+    });
+
+    expect(projection.getData()).toEqual([
+      [40],
+      [31]
+    ]);
+
+    expect(projection.projectedMap().hasColumn("older_age")).toEqual(true);
+    expect(projection.projectedMap().hasColumn("age")).toEqual(false);
+  })
+})

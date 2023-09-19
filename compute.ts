@@ -49,10 +49,14 @@ export type BooleanLiteral = {
 export type LiteralValue = Literal['value'];
 export type ComputationResult = LiteralValue;
 
-export function stringifyExpression(expr:Expression, depth:number = 0):string {
+export function stringifyExpression(expr:Expression, depth:number = 0, royalColumnReferences = false):string {
   switch(expr.type) {
     case "column_ref": 
-      return expr.column;
+      if (royalColumnReferences == true) {
+        return !!expr.table ? expr.table + "." + expr.column : expr.column;
+      } else {
+        return expr.column;
+      }  
     case "binary_expr": 
       let returnVal = stringifyExpression(expr.left, depth + 1) + expr.operator + stringifyExpression(expr.right, depth + 1);
       if (depth > 0) {
@@ -99,7 +103,7 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
       });
 
       if (typeof dataIndex == "undefined") {
-        throw new Error("Cannot find column " + expr.column);
+        throw new Error("Cannot find column '" + stringifyExpression(expr, 0, true) + "'");
       }
 
       let value:CellData;
@@ -454,6 +458,29 @@ export function extractAggregateExpressions(expr:Expression):Array<AggregateExpr
     case "null":
     case "bool":
       return [];
+    default: 
+      throw new Error("Unexpected expression type: " + expr.type);
+  }
+}
+
+export function setTableNamePrefixesWhereNull(tableName:string, expr:Expression) {
+  switch(expr.type) {
+    case "binary_expr":
+      setTableNamePrefixesWhereNull(tableName, expr.left);
+      setTableNamePrefixesWhereNull(tableName, expr.right);
+      break;
+    case "aggr_func":
+      setTableNamePrefixesWhereNull(tableName, (expr as AggregateExpression).args.expr);
+    case "column_ref":
+      let columnRef:ColumnRef = expr as ColumnRef;
+      if (columnRef.table == null) {
+        columnRef.table = tableName;
+      }
+    case "number":
+    case "single_quote_string":
+    case "null":
+    case "bool":
+      break;
     default: 
       throw new Error("Unexpected expression type: " + expr.type);
   }
