@@ -24,9 +24,7 @@ type TableSpecifier = {
   as: string|null,
   join?: "INNER JOIN",
   on?: BinaryExpression,
-  expr?: {
-    ast: Select
-  }
+  expr?: Subquery
 };
 
 // There's a lot to be desired from the AST types...
@@ -41,6 +39,11 @@ export type ColumnRef = {
   type: "column_ref",
   table: string|null, // TODO: Figure this one out
   column: string // column name
+}
+
+export type Subquery = {
+  type: "sub_query",
+  ast: AST
 }
 
 type CreateDefinition = {
@@ -106,6 +109,10 @@ export default function execute(sql:string, storage?:Storage) {
   if (Array.isArray(ast) == false) {
     ast = [ast] as Array<AST>;
   }
+
+  ast = (ast as Array<AST>).map((value) => {
+    return massageAST(value) as AST;
+  })
 
   debugAst(JSON.stringify(ast, null, 2));
 
@@ -279,7 +286,7 @@ function select(ast:Select, storage:Storage):LockedTable {
   if (ast.where != null) {
     table = new FilteredTable({
       table,
-      rowFilters: [createWhereFilter(ast.where)]
+      rowFilters: [createWhereFilter(ast.where, storage)]
     })
   }
 
@@ -327,7 +334,7 @@ function select(ast:Select, storage:Storage):LockedTable {
   if (ast.having != null) {
     table = new FilteredTable({
       table,
-      rowFilters: [createWhereFilter(ast.having)]
+      rowFilters: [createWhereFilter(ast.having, storage)]
     })
   }
 
@@ -340,14 +347,44 @@ function select(ast:Select, storage:Storage):LockedTable {
   return new LockedTable(table);
 }
 
-export function createWhereFilter(expr:BinaryExpression):RowFilter {
+export function createWhereFilter(expr:BinaryExpression, storage:Storage|undefined):RowFilter {
   return (filtredTable, filteredRow) => {
     // TODO(?): Notice the !!. For now, lets not worry about a computation result
     // in the WHERE clause returning something other than a boolean. 
     // Let's assume that the parser takes care of that for us. 
-    return !!compute(expr, filteredRow, filtredTable.sourceMap(), filtredTable.lockedAt);
+    return !!compute(expr, filteredRow, filtredTable.sourceMap(), storage, filtredTable.lockedAt);
   }
 }
+
+type ObjectValues = Record<string, any>|Array<any>|null|boolean|string|number
+
+function massageAST(value:ObjectValues):ObjectValues {
+  if (value == null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((innerValue) => massageAST(innerValue));
+  }
+
+  if (typeof value == "object") {
+    let newObject:Record<string, any> = {};
+
+    // If we find an "ast" key in an object, it must be a subquery. 
+    if (value.hasOwnProperty("ast") == true) {
+      newObject["type"] = "sub_query";
+    }
+
+    // Continue to walk all items
+    Object.entries(value).forEach(([key, innerValue]) => {
+      newObject[key] = massageAST(innerValue);
+    })
+
+    return newObject;
+  }
+
+  return value;
+} 
 
 function isFromSubquery(fromDefinition:TableSpecifier) {
   return typeof fromDefinition.expr != "undefined";

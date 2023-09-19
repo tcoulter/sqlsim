@@ -871,4 +871,31 @@ describe("execute()", () => {
       // No results
     ]);
   })
+
+  test("subquery in the WHERE clause", () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER
+      );
+    
+      INSERT INTO People VALUES ('Tim', 30), ('Liz', 21), ('Russ', 20);
+      
+      SELECT * FROM People WHERE age + 10 IN (SELECT age FROM People);
+      SELECT * FROM People WHERE age > (SELECT MIN(age) FROM People);
+    `);
+
+    expect(results.length).toBe(4);
+    expect(Array.isArray(results[2])).toBe(true);
+    expect(Array.isArray(results[3])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Russ', 20]
+    ]);
+
+    expect(results[3]).toEqual([
+      ['Tim', 30],
+      ['Liz', 21]
+    ]);
+  })
 });

@@ -62,7 +62,7 @@ describe("Compute", () => {
   })
 
   test("expressions with column references correctly pull column data", () => {
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert([
       ["Tim", 30],
       ["Liz", 21]
@@ -102,7 +102,7 @@ describe("Compute", () => {
   })
 
   test("aggregate computation", () => {
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert([
       ["Tim", 30],
       ["Liz", 21]
@@ -149,7 +149,7 @@ describe("Compute", () => {
   })
 
   test("aggregate with grouping", () => {
-    let table = new Table("People", ["name", "age", "dept"]);
+    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -166,7 +166,7 @@ describe("Compute", () => {
   })
 
   test("IN operator", () => {
-    let table = new Table("People", ["name", "age", "dept"]);
+    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -183,7 +183,7 @@ describe("Compute", () => {
   })
 
   test("NOT IN operator", () => {
-    let table = new Table("People", ["name", "age", "dept"]);
+    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -200,7 +200,7 @@ describe("Compute", () => {
   })
 
   test("IS operator", () => {
-    let table = new Table("People", ["name", "age", "is_hired"]);
+    let table = new Table({name: "People", columns: ["name", "age", "is_hired"]});
     table.insert([
       ["Tim", 30, true],
       ["Liz", 21, false],
@@ -231,7 +231,7 @@ describe("Compute", () => {
   })
 
   test("IS NOT operator", () => {
-    let table = new Table("People", ["name", "age", "is_hired"]);
+    let table = new Table({name: "People", columns: ["name", "age", "is_hired"]});
     table.insert([
       ["Tim", 30, true],
       ["Liz", 21, false],

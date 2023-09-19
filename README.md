@@ -42,7 +42,7 @@ More to come!
 - [x] SELECT ... FROM Table _AS NewName_ (AS for table names)
 - [x] SELECT col1 _AS newname_ FROM ... (AS for column names)
 - [ ] SELECT _5 AS newname_ (selecting literals with AS for dymanic table creation)
-- [ ] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
+- [x] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
 - [x] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
 - [x] SELECT ... FROM ... ORDER BY _col1 ASC, col2 DESC, ..._ (single and multi-column row ordering, with direction)

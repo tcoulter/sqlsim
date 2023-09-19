@@ -1,14 +1,16 @@
 import { AggrFunc as ASTAggrFunc } from "node-sql-parser";
-import { ColumnRef } from "./execute";
+import { ColumnRef, Subquery, executeFromAST } from "./execute";
 import { CellData } from "./storage/cell";
 import { Commit } from "./storage/commit";
 import Row, { JoinedRow } from "./storage/row";
 import ColumnIndexMap from "./storage/columnindexmap";
+import Storage from "./storage";
+import { LockedTable } from "./storage/table";
 
 // Damn parser doesn't give us an Expression type
 
-export type Expression = ColumnRef | Literal | BinaryExpression | AggregateExpression | ExpressionList;
-export type SingleExpression = ColumnRef | Literal | BinaryExpression;
+export type Expression = ColumnRef | Literal | BinaryExpression | AggregateExpression | ExpressionList | Subquery;
+export type SingleExpression = ColumnRef | Literal | BinaryExpression | Subquery;
 export type Literal = NumberLiteral | StringLiteral | NullLiteral | BooleanLiteral;
 
 // TODO: Test different expressions to see how parser responds
@@ -58,42 +60,43 @@ export function stringifyExpression(expr:Expression, depth:number = 0, royalColu
         return expr.column;
       }  
     case "binary_expr": 
-      let returnVal = stringifyExpression(expr.left, depth + 1) + expr.operator + stringifyExpression(expr.right, depth + 1);
+      let returnVal = stringifyExpression(expr.left, depth + 1, royalColumnReferences) + expr.operator + stringifyExpression(expr.right, depth + 1, royalColumnReferences);
       if (depth > 0) {
         returnVal = "(" + returnVal + ")";
       }
       return returnVal;
     case "expr_list": 
       return expr.value.map((item) => {
-        return stringifyExpression(item);
+        return stringifyExpression(item, depth, royalColumnReferences);
       }).reduce((previousValue, currentValue) => {
         return previousValue + "," + currentValue;
       }, "");
     case "null":
       return "null";
     case "number":
+    case "bool":
       return expr.value.toString();
     case "single_quote_string":
       return "'" + expr.value.toString() + "'";
     case "aggr_func": 
       return computeAggregateName(expr);
+    case "sub_query":
+      return "<subquery>";
     default:
-      // I want to have this error here for safety, but Typescript doesn't think we'll ever
-      // run this line (neither do I). Added an 'any' to make Typescript happy and ensure
-      // we're better safe than sorry. 
+      // Used 'any' because Typescript doesn't think this will ever run. But it's good as a safeguard. 
       throw new Error("FATAL: Unknown expression type " + (expr as any).type);
   }
 }
 
-export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), commit?:Commit):ComputationResult {
+export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), storage:Storage = new Storage(), commit?:Commit):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
-      let left = expr.left.type == "expr_list" 
-        ? computeExpressionList(expr.left, row, columnIndexMap, commit) 
-        : compute(expr.left, row, columnIndexMap, commit);
-      let right = expr.right.type == "expr_list"
-        ? computeExpressionList(expr.right, row, columnIndexMap, commit) 
-        : compute(expr.right, row, columnIndexMap, commit);
+      let left = (expr.left.type == "expr_list" || expr.left.type == "sub_query")
+        ? computeExpressionListOrSubquery(expr.left, row, columnIndexMap, storage, commit) 
+        : compute(expr.left, row, columnIndexMap, storage, commit);
+      let right = (expr.right.type == "expr_list" || expr.right.type == "sub_query")
+        ? computeExpressionListOrSubquery(expr.right, row, columnIndexMap, storage, commit) 
+        : compute(expr.right, row, columnIndexMap, storage, commit);
       return computeBinaryOperation(left, right, expr.operator);
     case "number":
     case "single_quote_string": 
@@ -114,7 +117,7 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
       if (typeof dataIndex == "number") {
         value = row.cell(dataIndex).getData(commit);
       } else {
-        value = compute(dataIndex, row, columnIndexMap, commit) as LiteralValue;
+        value = compute(dataIndex, row, columnIndexMap, storage, commit) as LiteralValue;
       }
 
       //console.log("Resolving column " + JSON.stringify(expr) + " (index: " + dataIndex + ") to value:", value);
@@ -132,13 +135,47 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
   }
 }
 
-function computeExpressionList(expr:ExpressionList, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), commit?:Commit):Array<ComputationResult> {
-  return expr.value.map((value) => {
-    return compute(value, row, columnIndexMap, commit) as LiteralValue;
-  })
+function computeExpressionListOrSubquery(expr:ExpressionList|Subquery, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), storage:Storage = new Storage(), commit?:Commit):Array<ComputationResult> {
+  if (expr.type == "sub_query") {
+    return getFirstColumn((executeFromAST([expr.ast], storage)[0] as LockedTable).getData());
+  } else {
+    return expr.value.map((value) => {
+      if (value.type == "sub_query") {
+        return computeExpressionListOrSubquery(value, row, columnIndexMap, storage, commit);
+      } else {
+        return compute(value, row, columnIndexMap, storage, commit) as LiteralValue;
+      }
+    }).flat()
+  }
 }
 
 function computeBinaryOperation(left:ComputationResult|Array<ComputationResult>, right:ComputationResult|Array<ComputationResult>, operator:BinaryExpression['operator']):ComputationResult {
+  // Get computation results in the right format first
+  switch(operator) {
+    case "+":
+    case "-":
+    case "/":
+    case "*":
+    case "=":
+    case "!=":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+    case "<>":
+    case "AND":
+    case "OR":
+    case "IS":
+    case "IS NOT":
+    case "LIKE":
+      left = ensureFirstValue(left, operator);
+      right = ensureFirstValue(right, operator);
+      break;
+    case "IN":
+    case "NOT IN":
+      break;
+  }
+  
   switch(operator) {
     case "+":
       enforceNumber(left);
@@ -250,6 +287,22 @@ function enforceArray(value:ComputationResult|Array<ComputationResult>) {
   if (Array.isArray(value) == false) {
     throw new Error("Expected list/tuple but got " + typeof value);
   }
+}
+
+function ensureFirstValue(value:ComputationResult|Array<ComputationResult>, operator:BinaryExpression['operator']):ComputationResult {
+  if (Array.isArray(value)) {
+    if (value.length == 1) {
+      return value[0];
+    } else {
+      throw new Error("Unexpected number of parameters/columns given to operator '" + operator + "'")
+    }
+  }
+
+  return value;
+}
+
+function getFirstColumn(data:CellData[][]) {
+  return data.map((rowData:CellData[]) => rowData[0]);
 }
 
 function convertLIKEPatternToRegex(pattern:string):RegExp {
@@ -407,10 +460,11 @@ export type ComputeAggregatesOptions = {
   rows:Array<Row>,
   columnIndexMap:ColumnIndexMap,
   groupColumns?:Array<ColumnRef>,
+  storage?:Storage,
   commit?:Commit
 }
 
-export function computeAggregates({aggregates, rows, columnIndexMap, groupColumns = [], commit}:ComputeAggregatesOptions):Array<Row> {
+export function computeAggregates({aggregates, rows, columnIndexMap, storage, groupColumns = [], commit}:ComputeAggregatesOptions):Array<Row> {
   type AggregatorByHash = Record<string, {
     groupCombination: CellData[],
     aggregators: Array<Aggregator>
@@ -442,7 +496,7 @@ export function computeAggregates({aggregates, rows, columnIndexMap, groupColumn
 
     aggregatorsByCombination[hash].aggregators.forEach((aggregator) => {
       // Note that we're computing what's inside the aggregation here. 
-      let value:CellData = compute(aggregator.expr.args.expr, row, columnIndexMap, commit);
+      let value:CellData = compute(aggregator.expr.args.expr, row, columnIndexMap, storage, commit);
       aggregator.next(value);
     })
   });

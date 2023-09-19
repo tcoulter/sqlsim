@@ -5,27 +5,37 @@ import { CellData } from "./cell";
 import { Commit, Committed, getLatestCommit, newCommit } from "./commit";
 import Row, { JoinedRow } from "./row";
 import ColumnIndexMap, { AllowedColumnMapping } from "./columnindexmap";
+import Storage from "../storage";
+
+export type TableOptions = {
+  name: string,
+  columns: Array<Column|string>,
+  storage?:Storage,
+  createdAt?: Commit
+}
 
 export default class Table extends Committed {
   name:string;
   columns:Array<Column> = [];
+  storage?:Storage;
   #rows:Array<Row> = [];
   #columnIndexMap:ColumnIndexMap;
   sourceDataCellCount:number;
   
-  constructor(tableName:string, columns:Array<Column|string>, commit?:Commit) {
-    super("table", commit);
+  constructor({name, columns, storage, createdAt}:TableOptions) {
+    super("table", createdAt);
 
+    this.storage = storage;
     this.#columnIndexMap = new ColumnIndexMap();
 
-    this.name = tableName;
+    this.name = name;
     this.columns = columns.map((column) => {
       if (typeof column == "string") {
         return {
           expr: {
             type: "column_ref", 
             column: column,
-            table: tableName
+            table: name
           },
           as: null
         };
@@ -35,7 +45,7 @@ export default class Table extends Committed {
             expr: {
               type: "column_ref",
               column: (column.expr as ColumnRef).column,
-              table: tableName
+              table: name
             }, 
             as: null
           }
@@ -104,7 +114,7 @@ export default class Table extends Committed {
     if (typeof where != "undefined") {
       table = new FilteredTable({
         table,
-        rowFilters: [createWhereFilter(where)]
+        rowFilters: [createWhereFilter(where, this.storage)]
       })
     }
 
@@ -173,14 +183,6 @@ export default class Table extends Committed {
       return row.getData(commit);
     })
   }
-  
-  getColumnData(row:Row, column:Column, commit?:Commit) {
-    if (!this.projectedMap().hasColumn(column)) {
-      throw new Error("Cannot find column '" + (column.as || stringifyExpression(column.expr)) + "'");
-    }
-
-    return compute(column.expr, row, this.sourceMap(), commit);
-  }
 
   sourceMap():ColumnIndexMap {
     return this.#columnIndexMap;
@@ -197,7 +199,7 @@ export class LockedTable extends Table {
   lockedAt:Commit; 
 
   constructor(table:Table, commit?:Commit) {
-    super(table.name, table.columns, table.createdAt);
+    super(table);
     this.baseTable = table;
     this.#columnIndexMap = new ColumnIndexMap(table.projectedMap());
     this.sourceDataCellCount = table.sourceDataCellCount;
@@ -233,7 +235,7 @@ export class LockedTable extends Table {
 
     return rows.map((row) => {
       return this.columns.map((column) => {
-        return compute(column.expr, row, this.baseTable.sourceMap(), commit);
+        return compute(column.expr, row, this.baseTable.sourceMap(), this.storage, commit);
       });
     });
   }
@@ -376,7 +378,7 @@ export class ProjectedTable extends LockedTable {
 
     return rows.map((row) => {
       return this.columns.map((column) => {
-        return compute(column.expr, row, mergedMap, commit);
+        return compute(column.expr, row, mergedMap, this.storage, commit);
       });
     });
   }
@@ -404,7 +406,12 @@ export class JoinedTable extends Table {
 
   constructor({type, left, right, on, commit}:JoinedTableOptions) {
     let columns = left.columns.concat(right.columns);
-    super(left.name + " x " + right.name, columns, left.createdAt);
+    super({
+      name: left.name + " x " + right.name, 
+      columns, 
+      storage: left.storage || right.storage, 
+      createdAt: Math.min(left.createdAt, right.createdAt)
+    });
     this.type = type;
 
     this.left = new LockedTable(left);
@@ -477,7 +484,7 @@ export class JoinedTable extends Table {
 
       rightRows.forEach((rightRow) => {
         let joinedRow = new JoinedRow(leftRow, rightRow);
-        let rowMatches = !!compute(this.on, joinedRow, this.projectedMap(), commit);
+        let rowMatches = !!compute(this.on, joinedRow, this.projectedMap(), this.storage, commit);
 
         if (rowMatches == true) {
           foundMatchinRightRow = true;
@@ -542,7 +549,12 @@ export class AggregateTable extends Table {
       }
     }));
 
-    super(table.name, columns, table.createdAt);
+    super({
+      name: table.name, 
+      columns, 
+      storage: table.storage, 
+      createdAt: table.createdAt
+    });
 
     this.#aggregates = aggregates;
     this.baseTable = table;
@@ -590,7 +602,7 @@ export class DistinctTable extends Table {
   
   // TODO: Expand distinctColumns to support naming columns via expressions (e.g., if AS is not used)
   constructor(table:Table, distinctColumns:Array<ColumnRef> = []) {
-    super(table.name, table.columns, table.createdAt);
+    super(table);
 
     this.baseTable = table; 
     this.distinctColumns = distinctColumns;
@@ -645,7 +657,7 @@ export class OrderedTable extends LockedTable {
 
     let createSortFunction = (item:OrderBy) => {
       return (row:Row) => {
-        return compute(item.expr, row, this.baseTable.sourceMap(), commit);
+        return compute(item.expr, row, this.baseTable.sourceMap(), this.storage, commit);
       }
     }
 

@@ -9,7 +9,7 @@ describe("LockedTable", () => {
     let expectedData:Array<CellData> = ["Tim", 30];
     let newData:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(expectedData)
    
     // We're going to do direct updates to the row rather than 
@@ -29,7 +29,7 @@ describe("LockedTable", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(firstRow);
 
     let lockedTable = new LockedTable(table);
@@ -49,7 +49,7 @@ describe("LockedTable", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(firstRow);
     table.insert(secondRow);
 
@@ -73,7 +73,7 @@ describe("Table", () => {
     let firstRowData:Array<CellData> = ["Tim", 30];
     let secondRowData:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert([
       firstRowData,
       secondRowData
@@ -93,7 +93,7 @@ describe("Table", () => {
       ["Preeti", 25]
     ]
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(initialData);
 
     table.update(['age'], [100], expression(columnRef('age'), ">=", 25));
@@ -114,7 +114,7 @@ describe("Table", () => {
       ["Preeti", 25]
     ]
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(initialData);
 
     table.update(['age'], [expression(columnRef('age'), "+", 5)], expression(columnRef('age'), ">=", 25));
@@ -135,7 +135,7 @@ describe("Table", () => {
       ["Preeti", 25]
     ]
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(initialData);
 
     // Notice separate order of age and name
@@ -156,7 +156,7 @@ describe("Table", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(firstRow);
     table.insert(secondRow);
 
@@ -172,7 +172,7 @@ describe("Table", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(firstRow);
     table.insert(secondRow);
 
@@ -188,7 +188,7 @@ describe("Table", () => {
     let firstRow:Array<CellData> = ["Tim", 30];
     let secondRow:Array<CellData> = ["Timmma", 31];
 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(firstRow);
     table.insert(secondRow);
 
@@ -202,7 +202,7 @@ describe("Table", () => {
 
   test("can rename columns via projection", () => {
     // Note we're using the Column object here instead of simple names. 
-    let table = new Table("People", ["name", "age"]);
+    let table = new Table({name: "People", columns: ["name", "age"]});
     table.insert(["Tim", 30]);
 
     let firstProjection = new ProjectedTable({
@@ -234,8 +234,8 @@ describe("Table", () => {
 
 describe("JoinedTable", () => {
   test("handles left/right/inner/full joins", () => {
-    let people = new Table("People", ["name", "age", "from_id"]);
-    let countries = new Table("Countries", ["country_id", "country_name"]);
+    let people = new Table({name: "People", columns: ["name", "age", "from_id"]});
+    let countries = new Table({name: "Countries", columns: ["country_id", "country_name"]});
     
     people.insert([
       ["Tim", 30, 1],
@@ -305,8 +305,8 @@ describe("JoinedTable", () => {
   })
 
   test("handles cross joins", () => {
-    let tableA = new Table("A", ["one", "two"]);
-    let tableB = new Table("B", ["three", "four"]);
+    let tableA = new Table({name: "A", columns: ["one", "two"]});
+    let tableB = new Table({name: "B", columns: ["three", "four"]});
 
     tableA.insert([
       [1, 1],
@@ -336,8 +336,8 @@ describe("JoinedTable", () => {
     // A computed table is the final object type used before directly computing data
     // All select statements, even with joins, will eventually result in a computed table. 
 
-    let people = new Table("People", ["name", "age", "from_id"]);
-    let countries = new Table("Countries", ["country_id", "country_name"]);
+    let people = new Table({name: "People", columns: ["name", "age", "from_id"]});
+    let countries = new Table({name: "Countries", columns: ["country_id", "country_name"]});
     
     people.insert([
       ["Tim", 30, 1],
@@ -372,8 +372,8 @@ describe("JoinedTable", () => {
   // TODO: Make sure joined tables respect row commits
   
   test("maintain column ambiguity (columns with the same name)", () => {
-    let a = new Table("A", ["name"]);
-    let b = new Table("B", ["name"]);
+    let a = new Table({name: "A", columns: ["name"]});
+    let b = new Table({name: "B", columns: ["name"]});
 
     a.insert([["Tim"], ["Liz"]]);
     b.insert([["Gary"], ["Russ"]]);
@@ -401,8 +401,8 @@ describe("JoinedTable", () => {
   })
 
   test("maintain column *dis*ambiguity via table name prefixes", () => {
-    let a = new Table("A", ["name"]);
-    let b = new Table("B", ["name"]);
+    let a = new Table({name: "A", columns: ["name"]});
+    let b = new Table({name: "B", columns: ["name"]});
 
     a.insert([["Tim"], ["Liz"]]);
     b.insert([["Gary"], ["Russ"]]);
@@ -437,7 +437,7 @@ describe("JoinedTable", () => {
 
 describe("Distinct Table", () => {
   test("it pulls the first distinct of every combination", () => {
-    let table = new Table("Table", ["col1", "col2", "col3"]);
+    let table = new Table({name: "Table", columns: ["col1", "col2", "col3"]});
 
     table.insert([
       [1, 1, 1], // Distinct
@@ -465,7 +465,7 @@ describe("Distinct Table", () => {
 
   test("distinct without any grouping", () => {
     // This represents an original table with an aggregate calculation added
-    let table = new Table("People", ["name", "age", "AVG(age)"]);
+    let table = new Table({name: "People", columns: ["name", "age", "AVG(age)"]});
 
     table.insert([
       ["Tim", 30, 34],
@@ -482,7 +482,7 @@ describe("Distinct Table", () => {
 })
 
 describe("Ordered Table", () => {
-  let table = new Table("People", ["name", "age", "department"]);
+  let table = new Table({name: "People", columns: ["name", "age", "department"]});
 
   table.insert([
     ["Russ", 51, "Accounting"],
@@ -552,7 +552,7 @@ describe("Ordered Table", () => {
 
 describe("ProjectedTable", () => {
   test("maintains a column index map of only the data it manages, but can access old data as needed", () => {
-    let table = new Table("A", ["name", "age"]);
+    let table = new Table({name: "A", columns: ["name", "age"]});
     table.insert([
       ["Tim", 30],
       ["Liz", 21]

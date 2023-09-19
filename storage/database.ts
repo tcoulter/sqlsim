@@ -22,7 +22,10 @@ export default class Database extends Committed {
       throw new Error("Table '" + tableName + "' already exists in database!");
     }
 
-    this.tables[tableName] = new Table(tableName, columns);
+    this.tables[tableName] = new Table({
+      name: tableName, 
+      columns
+    });
 
     return this.tables[tableName];
   }
