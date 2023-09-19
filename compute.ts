@@ -156,10 +156,9 @@ function computeBinaryOperation(left:ComputationResult|Array<ComputationResult>,
       enforceNumber(left);
       enforceNumber(right);
       return (left as number) * (right as number);
-    case "IS": // TODO: Need to double check that this can only be used on nulls
     case "=":
       return left == right;
-    case "IS NOT": // TODO: Need to double check that this can only be used on nulls
+    
     case "<>":
     case "!=":
       return left != right;
@@ -210,6 +209,20 @@ function computeBinaryOperation(left:ComputationResult|Array<ComputationResult>,
       return found;
     case "NOT IN":
       return computeBinaryOperation(left, right, "IN") == false;
+    case "IS": 
+      enforceBoolean(right);
+      let truthiness:boolean = false;
+
+      // Mimic truthiness allowed by MySQL
+      if (typeof left == "boolean") {
+        truthiness = left;
+      } else if (typeof left == "number") {
+        truthiness = left != 0; 
+      }
+
+      return truthiness;
+    case "IS NOT":
+      return computeBinaryOperation(left, right, "IS") == false;
     default: 
       throw new Error("Unexpected expression operator " + operator + "; operator not yet supported");
   }

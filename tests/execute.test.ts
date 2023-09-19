@@ -813,4 +813,62 @@ describe("execute()", () => {
       ['Russ', 51]
     ]);
   })
+
+  test("IS/IS NOT operator with truthiness comparison", () => {
+    let {results, storage} = execute(`
+      CREATE TABLE People (
+        name VARCHAR(20),
+        age INTEGER,
+        is_hired BOOLEAN
+      );
+      
+      INSERT INTO People VALUES ('Tim', 30, true), ('Liz', 21, true), ('Russ', 51, false);
+      
+      SELECT * FROM People WHERE is_hired IS TRUE;
+      SELECT * FROM People WHERE is_hired IS NOT TRUE;
+
+      SELECT * FROM People WHERE name IS TRUE;
+      SELECT * FROM People WHERE name IS NOT TRUE;
+
+      SELECT * FROM People WHERE age IS TRUE;
+      SELECT * FROM People WHERE age IS NOT TRUE;
+    `);
+
+    expect(results.length).toBe(8);
+    expect(Array.isArray(results[2])).toBe(true);
+    expect(Array.isArray(results[3])).toBe(true);
+    expect(Array.isArray(results[4])).toBe(true);
+    expect(Array.isArray(results[5])).toBe(true);
+    expect(Array.isArray(results[6])).toBe(true);
+    expect(Array.isArray(results[7])).toBe(true);
+
+    expect(results[2]).toEqual([
+      ['Tim', 30, true],
+      ['Liz', 21, true]
+    ]);
+
+    expect(results[3]).toEqual([
+      ['Russ', 51, false]
+    ]);
+
+    expect(results[4]).toEqual([
+      // No results
+    ]);
+
+    expect(results[5]).toEqual([
+      ['Tim', 30, true],
+      ['Liz', 21, true],
+      ['Russ', 51, false]
+    ]);
+
+    expect(results[6]).toEqual([
+      ['Tim', 30, true],
+      ['Liz', 21, true],
+      ['Russ', 51, false]
+    ]);
+
+    expect(results[7]).toEqual([
+      // No results
+    ]);
+  })
 });

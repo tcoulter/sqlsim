@@ -83,8 +83,8 @@ More to come!
 - [x] _<>_ operator
 - [x] _AND_ operator
 - [x] _OR_ operator
-- [ ] _IS_ operator
-- [ ] _IS NOT_ operator
+- [x] _IS_ operator (Note: only TRUE/FALSE supported; UNKNOWN not yet supported)
+- [x] _IS NOT_ operator (Note: only TRUE/FALSE supported; UNKNOWN not yet supported)
 - [x] _IN (...expression list...)_ operator
 - [ ] _IN (...subquery...)_ operator
 - [x] _NOT IN (...expression list...)_ operator

@@ -198,4 +198,66 @@ describe("Compute", () => {
       false
     ]);
   })
+
+  test("IS operator", () => {
+    let table = new Table("People", ["name", "age", "is_hired"]);
+    table.insert([
+      ["Tim", 30, true],
+      ["Liz", 21, false],
+      ["Bob", 45, false],
+      ["Sarah", 35, true]
+    ]);
+
+    expect(runTable(columnRef("is_hired"), "IS", true, table)).toEqual([
+      true,
+      false,
+      false,
+      true
+    ]);
+
+    expect(runTable(columnRef("name"), "IS", true, table)).toEqual([
+      false,
+      false,
+      false,
+      false
+    ]);
+
+    expect(runTable(columnRef("age"), "IS", true, table)).toEqual([
+      true,
+      true,
+      true,
+      true
+    ]);
+  })
+
+  test("IS NOT operator", () => {
+    let table = new Table("People", ["name", "age", "is_hired"]);
+    table.insert([
+      ["Tim", 30, true],
+      ["Liz", 21, false],
+      ["Bob", 45, false],
+      ["Sarah", 35, true]
+    ]);
+
+    expect(runTable(columnRef("is_hired"), "IS NOT", true, table)).toEqual([
+      false,
+      true,
+      true,
+      false
+    ]);
+
+    expect(runTable(columnRef("name"), "IS NOT", true, table)).toEqual([
+      true,
+      true,
+      true,
+      true
+    ]);
+
+    expect(runTable(columnRef("age"), "IS NOT", true, table)).toEqual([
+      false,
+      false,
+      false,
+      false
+    ]);
+  })
 })
