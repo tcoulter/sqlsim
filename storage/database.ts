@@ -1,7 +1,7 @@
 import { Column } from "../execute";
 import Storage from "../storage";
 import { Commit, Committed, getLatestCommit } from "./commit";
-import Table, { TableOptions } from "./table";
+import Table, { LockedTable, TableOptions } from "./table";
 
 export default class Database extends Committed {
   tables:Record<string, Table> = {};
@@ -31,8 +31,8 @@ export default class Database extends Committed {
   }
 
   // TODO: If a commit is passed, should we return a locked table? 
-  getTable(tableName:string, commit:Commit = getLatestCommit()) {
-    if (!this.hasTable(tableName, commit)) {
+  getTable(tableName:string) {
+    if (!this.hasTable(tableName)) {
       throw new Error("Cannot get table " + tableName + " because it doesn't exist in database!");
     }
 

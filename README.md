@@ -43,7 +43,7 @@ More to come!
 - [x] SELECT col1 _AS newname_ FROM ... (AS for column names)
 - [ ] SELECT _5 AS newname_ (selecting literals with AS for dymanic table creation)
 - [x] SELECT ... FROM Table WHERE _(SELECT ...)_ (subqueries in the WHERE clause)
-- [ ] SELECT ... FROM Table WHERE _col1 > (SELECT AVG(col1) FROM ... WHERE col2 = Table.col2)_ (correlated subquery)
+- [x] SELECT ... FROM Table WHERE _col1 > (SELECT AVG(col1) FROM ... WHERE col2 = Table.col2)_ (correlated subquery)
 - [x] SELECT ... FROM _(SELECT ...)_ (subqueries in the FROM clause)
 - [ ] SELECT _(SELECT ...) FROM ... (subqueries in the projection list)
 - [x] SELECT ... FROM ... ORDER BY _col1 ASC, col2 DESC, ..._ (single and multi-column row ordering, with direction)

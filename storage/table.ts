@@ -193,6 +193,8 @@ export default class Table extends Committed {
   }
 }
 
+
+
 export class LockedTable extends Table {
   #columnIndexMap:ColumnIndexMap;
   baseTable:Table;
@@ -264,6 +266,10 @@ export class LockedTable extends Table {
 
   projectedMap(): ColumnIndexMap {
     return this.#columnIndexMap;
+  }
+
+  setStorage(storage:Storage) {
+    this.storage = storage;
   }
 }
 

@@ -271,6 +271,14 @@ function update(ast:Update, storage:Storage):Commit {
 function select(ast:Select, storage:Storage):LockedTable {
   let table = getTable(ast.from[0], storage);
 
+  // Immediately lock the table to our storage object passed. 
+  // This is because the storage object stored within the table
+  // object may be one with an earlier stack frame. 
+  // TODO: This is another reason why we should likely rewrite all
+  // these table objects as middleware instead of Table classes.
+  table = new LockedTable(table);
+  (table as LockedTable).setStorage(storage);
+  
   // Process source tables (e.g., joins) before doing anything
   for (var fromIndex = 1; fromIndex < ast.from.length; fromIndex++) {
     let newFromDefinition = ast.from[fromIndex];

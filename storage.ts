@@ -74,6 +74,20 @@ class Storage {
 
     return undefined;
   }
+
+  static newStackFrame(storage:Storage, row:Row, columnIndexMap:ColumnIndexMap) {
+    let newStorage = new Storage();
+    
+    newStorage.defaultDatabase = storage.defaultDatabase;
+    newStorage.databases = storage.databases; 
+
+    newStorage.execStack = [];
+    newStorage.execStack.push.apply(newStorage.execStack, storage.execStack);
+
+    newStorage.pushStack(row, columnIndexMap);
+
+    return newStorage;
+  }
 };
 
 export default Storage;

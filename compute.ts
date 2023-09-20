@@ -104,6 +104,8 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
     case "null": 
       return expr.value;
     case "column_ref":
+      // If we have a royal column reference (royal, meaning it includes both table and column)
+      // see if we can get this data from the stack first. 
       if (expr.table != null && !columnIndexMap.hasColumn({expr, as: null})) {
         let contextData:CellData|undefined = storage.getStackData(expr, commit);
 
@@ -112,14 +114,13 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
         }
       }
 
+      // If we can't get it from the stack, and our current context doesn't have a record of
+      // the table, then error. 
       if (expr.table != null && !columnIndexMap.hasTable(expr.table)) {
         throw new Error("Unknown table " + expr.table);
       }
 
-      let dataIndex = columnIndexMap.getColumnMapping({
-        expr,
-        as: null
-      });
+      let dataIndex = columnIndexMap.getColumnMapping({expr, as: null});
 
       if (typeof dataIndex == "undefined") {
         throw new Error("Cannot find column '" + stringifyExpression(expr, 0, true) + "'");
@@ -149,9 +150,9 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
 
 function computeExpressionListOrSubquery(expr:ExpressionList|Subquery, row:Row, columnIndexMap:ColumnIndexMap, storage:Storage, commit?:Commit):Array<ComputationResult> {
   if (expr.type == "sub_query") {
-    storage.pushStack(row, columnIndexMap);
-    let subqueryResult = (executeFromAST([expr.ast], storage)[0] as LockedTable)
-    //storage.popStack();
+    // Create a new storage object to bump up the stack frame
+    let subqueryStorage = Storage.newStackFrame(storage, row, columnIndexMap);
+    let subqueryResult = (executeFromAST([expr.ast], subqueryStorage)[0] as LockedTable)
     
     return getFirstColumn(subqueryResult.getData());
   } else {
