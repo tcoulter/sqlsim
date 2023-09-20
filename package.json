@@ -2,10 +2,13 @@
   "name": "sqlsim",
   "version": "0.0.1",
   "description": "",
-  "main": "index.ts",
+  "main": "build/index.js",
+  "type": "module",
   "scripts": {
     "start": "ts-node ./index.ts",
-    "test": "jest"
+    "test": "bun test",
+    "test:jest": "jest",
+    "build": "bun build ./index.ts --outdir ./build --target browser"
   },
   "author": "Tim Coulter <tim@timothyjcoulter.com>",
   "license": "MIT",
