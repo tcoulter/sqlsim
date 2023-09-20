@@ -87,9 +87,9 @@ More to come!
 - [x] _IS_ operator (Note: only TRUE/FALSE supported; UNKNOWN not yet supported)
 - [x] _IS NOT_ operator (Note: only TRUE/FALSE supported; UNKNOWN not yet supported)
 - [x] _IN (...expression list...)_ operator
-- [ ] _IN (...subquery...)_ operator
+- [x] _IN (...subquery...)_ operator
 - [x] _NOT IN (...expression list...)_ operator
-- [ ] _NOT IN (...subquery...)_ operator
+- [x] _NOT IN (...subquery...)_ operator
 - [x] _LIKE_ operator
 - [ ] _ANY_ operator
 - [ ] _SOME_ operator
