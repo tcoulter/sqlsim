@@ -1,5 +1,15 @@
 import { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, ExpressionList, Literal, LiteralValue} from "../compute"
 import { ColumnRef, OrderBy } from "../execute";
+import Storage from "../storage";
+import Table from "../storage/table";
+
+export function createTable(name:string, columns:Array<string>) {
+  return new Table({
+    name, 
+    columns,
+    storage: new Storage()
+  })
+}
 
 export function expression(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue):BinaryExpression {
   return {

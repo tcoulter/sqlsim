@@ -88,7 +88,7 @@ export function stringifyExpression(expr:Expression, depth:number = 0, royalColu
   }
 }
 
-export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), storage:Storage = new Storage(), commit?:Commit):ComputationResult {
+export default function compute(expr:Expression, row:Row = new Row([]), columnIndexMap:ColumnIndexMap, storage:Storage, commit?:Commit):ComputationResult {
   switch(expr.type) {
     case "binary_expr": 
       let left = (expr.left.type == "expr_list" || expr.left.type == "sub_query")
@@ -103,7 +103,19 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
     case "bool": 
     case "null": 
       return expr.value;
-    case "column_ref": 
+    case "column_ref":
+      if (expr.table != null && !columnIndexMap.hasColumn({expr, as: null})) {
+        let contextData:CellData|undefined = storage.getStackData(expr, commit);
+
+        if (typeof contextData != "undefined") {
+          return contextData;
+        }
+      }
+
+      if (expr.table != null && !columnIndexMap.hasTable(expr.table)) {
+        throw new Error("Unknown table " + expr.table);
+      }
+
       let dataIndex = columnIndexMap.getColumnMapping({
         expr,
         as: null
@@ -135,9 +147,13 @@ export default function compute(expr:Expression, row:Row = new Row([]), columnIn
   }
 }
 
-function computeExpressionListOrSubquery(expr:ExpressionList|Subquery, row:Row = new Row([]), columnIndexMap:ColumnIndexMap = new ColumnIndexMap(), storage:Storage = new Storage(), commit?:Commit):Array<ComputationResult> {
+function computeExpressionListOrSubquery(expr:ExpressionList|Subquery, row:Row, columnIndexMap:ColumnIndexMap, storage:Storage, commit?:Commit):Array<ComputationResult> {
   if (expr.type == "sub_query") {
-    return getFirstColumn((executeFromAST([expr.ast], storage)[0] as LockedTable).getData());
+    storage.pushStack(row, columnIndexMap);
+    let subqueryResult = (executeFromAST([expr.ast], storage)[0] as LockedTable)
+    //storage.popStack();
+    
+    return getFirstColumn(subqueryResult.getData());
   } else {
     return expr.value.map((value) => {
       if (value.type == "sub_query") {
@@ -459,8 +475,8 @@ export type ComputeAggregatesOptions = {
   aggregates: Array<AggregateExpression>,
   rows:Array<Row>,
   columnIndexMap:ColumnIndexMap,
+  storage:Storage,
   groupColumns?:Array<ColumnRef>,
-  storage?:Storage,
   commit?:Commit
 }
 

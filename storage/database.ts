@@ -1,6 +1,7 @@
 import { Column } from "../execute";
+import Storage from "../storage";
 import { Commit, Committed, getLatestCommit } from "./commit";
-import Table from "./table";
+import Table, { TableOptions } from "./table";
 
 export default class Database extends Committed {
   tables:Record<string, Table> = {};
@@ -16,18 +17,17 @@ export default class Database extends Committed {
       && this.tables[tableName].createdAt <= commit;
   }
 
-  createTable(tableName:string, columns:Array<string|Column>) {
+  createTable(options:TableOptions) {
+    let {name, columns, storage} = options;
+    
     // TODO: Support IF NOT EXISTS, etc.
-    if (this.hasTable(tableName)) {
-      throw new Error("Table '" + tableName + "' already exists in database!");
+    if (this.hasTable(name)) {
+      throw new Error("Table '" + name + "' already exists in database!");
     }
 
-    this.tables[tableName] = new Table({
-      name: tableName, 
-      columns
-    });
+    this.tables[name] = new Table(options);
 
-    return this.tables[tableName];
+    return this.tables[name];
   }
 
   // TODO: If a commit is passed, should we return a locked table? 

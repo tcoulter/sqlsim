@@ -205,12 +205,16 @@ function createTable(ast:CreateTable, storage:Storage):Commit {
   let tableName = ast.table[0].table;
   let database = getDatabase(ast.table[0].db, storage);
 
-  database.createTable(tableName, ast.create_definitions.map((def:CreateDefinition) => {
-    return {
-      expr: def.column,
-      as: null
-    }
-  })); 
+  database.createTable({
+    name: tableName, 
+    columns: ast.create_definitions.map((def:CreateDefinition) => {
+      return {
+        expr: def.column,
+        as: null
+      }
+    }), 
+    storage
+  }); 
 
   return getLatestCommit();
 };
@@ -286,7 +290,7 @@ function select(ast:Select, storage:Storage):LockedTable {
   if (ast.where != null) {
     table = new FilteredTable({
       table,
-      rowFilters: [createWhereFilter(ast.where, storage)]
+      rowFilters: [createWhereFilter(ast.where)]
     })
   }
 
@@ -334,7 +338,7 @@ function select(ast:Select, storage:Storage):LockedTable {
   if (ast.having != null) {
     table = new FilteredTable({
       table,
-      rowFilters: [createWhereFilter(ast.having, storage)]
+      rowFilters: [createWhereFilter(ast.having)]
     })
   }
 
@@ -347,12 +351,12 @@ function select(ast:Select, storage:Storage):LockedTable {
   return new LockedTable(table);
 }
 
-export function createWhereFilter(expr:BinaryExpression, storage:Storage|undefined):RowFilter {
+export function createWhereFilter(expr:BinaryExpression):RowFilter {
   return (filtredTable, filteredRow) => {
     // TODO(?): Notice the !!. For now, lets not worry about a computation result
     // in the WHERE clause returning something other than a boolean. 
     // Let's assume that the parser takes care of that for us. 
-    return !!compute(expr, filteredRow, filtredTable.sourceMap(), storage, filtredTable.lockedAt);
+    return !!compute(expr, filteredRow, filtredTable.sourceMap(), filtredTable.storage, filtredTable.lockedAt);
   }
 }
 

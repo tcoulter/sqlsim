@@ -10,14 +10,14 @@ import Storage from "../storage";
 export type TableOptions = {
   name: string,
   columns: Array<Column|string>,
-  storage?:Storage,
+  storage:Storage,
   createdAt?: Commit
 }
 
 export default class Table extends Committed {
   name:string;
   columns:Array<Column> = [];
-  storage?:Storage;
+  storage:Storage;
   #rows:Array<Row> = [];
   #columnIndexMap:ColumnIndexMap;
   sourceDataCellCount:number;
@@ -114,7 +114,7 @@ export default class Table extends Committed {
     if (typeof where != "undefined") {
       table = new FilteredTable({
         table,
-        rowFilters: [createWhereFilter(where, this.storage)]
+        rowFilters: [createWhereFilter(where)]
       })
     }
 
@@ -129,7 +129,7 @@ export default class Table extends Committed {
         // We need to discern between cell data and binary expression. 
         // A binary expression is an object. So is null... 
         if (value != null && typeof value == "object") {
-          value = compute(value as BinaryExpression, row, this.#columnIndexMap)
+          value = compute(value as BinaryExpression, row, this.#columnIndexMap, this.storage)
         }
 
         // Get the index of the column to update
@@ -581,6 +581,7 @@ export class AggregateTable extends Table {
       rows: this.baseTable.getRows(commit),
       columnIndexMap: this.baseTable.sourceMap(),
       groupColumns: this.groupColumns,
+      storage: this.storage,
       commit
     });
   }

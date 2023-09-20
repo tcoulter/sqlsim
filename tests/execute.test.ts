@@ -898,4 +898,44 @@ describe("execute()", () => {
       ['Liz', 21]
     ]);
   })
+
+  test("correlated subquery", () => {
+    let {results, storage} = execute(`
+      -- create
+      CREATE TABLE Employees (
+        id INTEGER,
+        mgr_id INTEGER,
+        name TEXT NOT NULL,
+        dept TEXT NOT NULL,
+        salary INTEGER
+      );
+      
+      -- insert
+      INSERT INTO Employees VALUES (0001, NULL, 'Ava', 'Sales', 300000);        -- Chief Sales Officer
+      INSERT INTO Employees VALUES (0002, NULL, 'Dave', 'Accounting', 270000);  -- Chief Financial Officer
+      INSERT INTO Employees VALUES (0003, 0001, 'Clark', 'Sales', 160000);      -- Middle manager
+      INSERT INTO Employees VALUES (0004, 0002, 'Bob', 'Accounting', 165000);   -- Middle manager
+      INSERT INTO Employees VALUES (0005, 0003, 'Derek', 'Sales', 20000);       -- Intern
+      INSERT INTO Employees VALUES (0006, 0004, 'Julie', 'Accounting', 72000);  -- Individual contributor
+      
+      -- correlated subquery
+      SELECT name, dept, salary
+      FROM Employees AS e
+      WHERE salary >= (
+        SELECT AVG(salary)
+        FROM Employees
+        WHERE dept = e.dept
+      )
+      ORDER BY name;
+    `);
+
+    expect(results.length).toBe(8);
+    expect(Array.isArray(results[7])).toBe(true);
+
+    expect(results[7]).toEqual([
+      ["Ava", "Sales", 300000],
+      ["Clark", "Sales", 160000],
+      ["Dave", "Accounting", 270000]
+    ]);
+  })
 });

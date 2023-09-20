@@ -8,7 +8,7 @@ type TableAndColumnName = {
   columnName:string
 }
 
-class UniqueMappingManager {
+export class UniqueMappingManager {
   map:Map<number|string, AllowedColumnMapping>;
 
   constructor() {
@@ -65,8 +65,6 @@ export default class ColumnIndexMap {
     let columnNameAlias:string|null = column.as;
 
     // Add column names and prefixes, 
-    
-    
     if (columnNameAlias != null) {
       this.#addToColumnNameMap(columnNameAlias, index);
     } else {
@@ -80,9 +78,16 @@ export default class ColumnIndexMap {
     }
   }
 
+  hasTable(tableName:string|null) {
+    if (tableName == null) {
+      return false;
+    }
+    return typeof this.tableColumnNameMap[tableName] != "undefined";
+  }
+
   hasColumn(column:Column|string) {
     let {tableName, columnName} = this.#getTableAndColumnNames(column);
-    return this.#getMappings(tableName, columnName) != undefined;
+    return typeof this.#getMappings(tableName, columnName) != "undefined";
   }
 
   getColumnMapping(column:Column|string):AllowedColumnMapping|undefined {
@@ -192,7 +197,7 @@ export default class ColumnIndexMap {
       let tableRecord = this.tableColumnNameMap[tableName];
 
       if (typeof tableRecord == "undefined") {
-        throw new Error("Unknown table " + tableName);
+        return undefined;
       }
 
       // We were given a column reference. Let's try to look it up directly. 

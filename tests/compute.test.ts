@@ -1,18 +1,21 @@
 import compute, { AggregateExpression, AvailableAggregations, BinaryExpression, Expression, LiteralValue, computeAggregates, extractAggregateExpressions, stringifyExpression } from "../compute"
 import { ColumnRef } from "../execute";
+import Storage from "../storage";
+import ColumnIndexMap from "../storage/columnindexmap";
+import Row from "../storage/row";
 import Table, { AggregateTable } from "../storage/table";
-import { aggregateFunction, columnRef, expression, expressionList } from "./helpers";
+import { aggregateFunction, columnRef, createTable, expression, expressionList } from "./helpers";
 
 describe("Compute", () => {
   function run(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue) {
     let expr = expression(left, operator, right);
-    return compute(expr)
+    return compute(expr, new Row([]), new ColumnIndexMap(), new Storage())
   }
 
   function runTable(left:Expression|LiteralValue, operator: BinaryExpression['operator'], right:Expression|LiteralValue, table:Table) {
     let expr = expression(left, operator, right);
     return table.getRows().map((row) => {
-      return compute(expr, row, table.sourceMap());
+      return compute(expr, row, table.sourceMap(), new Storage());
     });
   }
 
@@ -21,6 +24,7 @@ describe("Compute", () => {
       aggregates:  [aggregateFunction(name, expr)],
       rows: table.getRows(),
       columnIndexMap: table.sourceMap(),
+      storage: new Storage(),
       groupColumns: groupBy
     }).map((row) => row.getData());
   }
@@ -62,7 +66,7 @@ describe("Compute", () => {
   })
 
   test("expressions with column references correctly pull column data", () => {
-    let table = new Table({name: "People", columns: ["name", "age"]});
+    let table = createTable("People", ["name", "age"]);
     table.insert([
       ["Tim", 30],
       ["Liz", 21]
@@ -102,7 +106,7 @@ describe("Compute", () => {
   })
 
   test("aggregate computation", () => {
-    let table = new Table({name: "People", columns: ["name", "age"]});
+    let table = createTable("People", ["name", "age"]);
     table.insert([
       ["Tim", 30],
       ["Liz", 21]
@@ -149,7 +153,7 @@ describe("Compute", () => {
   })
 
   test("aggregate with grouping", () => {
-    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
+    let table = createTable("People", ["name", "age", "dept"]);
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -166,7 +170,7 @@ describe("Compute", () => {
   })
 
   test("IN operator", () => {
-    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
+    let table = createTable("People", ["name", "age", "dept"]);
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -183,7 +187,7 @@ describe("Compute", () => {
   })
 
   test("NOT IN operator", () => {
-    let table = new Table({name: "People", columns: ["name", "age", "dept"]});
+    let table = createTable("People", ["name", "age", "dept"]);
     table.insert([
       ["Tim", 30, "Sales"],
       ["Liz", 21, "Sales"],
@@ -200,7 +204,7 @@ describe("Compute", () => {
   })
 
   test("IS operator", () => {
-    let table = new Table({name: "People", columns: ["name", "age", "is_hired"]});
+    let table = createTable("People", ["name", "age", "is_hired"]);
     table.insert([
       ["Tim", 30, true],
       ["Liz", 21, false],
@@ -231,7 +235,7 @@ describe("Compute", () => {
   })
 
   test("IS NOT operator", () => {
-    let table = new Table({name: "People", columns: ["name", "age", "is_hired"]});
+    let table = createTable("People", ["name", "age", "is_hired"]);
     table.insert([
       ["Tim", 30, true],
       ["Liz", 21, false],
